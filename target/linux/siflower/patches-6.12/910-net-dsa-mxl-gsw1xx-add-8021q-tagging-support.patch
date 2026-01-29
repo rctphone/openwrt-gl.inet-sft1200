@@ -1,0 +1,93 @@
+diff -Naur a/drivers/net/dsa/lantiq/lantiq_gswip.h b/drivers/net/dsa/lantiq/lantiq_gswip.h
+--- a/drivers/net/dsa/lantiq/lantiq_gswip.h	2026-01-29 04:52:51.437571012 +0000
++++ b/drivers/net/dsa/lantiq/lantiq_gswip.h	2026-01-29 04:52:51.449571012 +0000
+@@ -259,6 +259,9 @@
+ 	struct phylink_pcs *(*mac_select_pcs)(struct phylink_config *config,
+ 					      phy_interface_t interface);
+ 	int (*port_setup)(struct dsa_switch *ds, int port);
++	/* Optional: override tag protocol (for HNAT compatibility) */
++	enum dsa_tag_protocol (*get_tag_protocol)(struct dsa_switch *ds,
++						  int port);
+ };
+ 
+ struct gswip_gphy_fw {
+diff -Naur a/drivers/net/dsa/lantiq/lantiq_gswip_common.c b/drivers/net/dsa/lantiq/lantiq_gswip_common.c
+--- a/drivers/net/dsa/lantiq/lantiq_gswip_common.c	2026-01-29 04:52:51.439571012 +0000
++++ b/drivers/net/dsa/lantiq/lantiq_gswip_common.c	2026-01-29 04:52:51.450571012 +0000
+@@ -752,6 +752,10 @@
+ {
+ 	struct gswip_priv *priv = ds->priv;
+ 
++	/* Allow hw_info to override tag protocol (for HNAT) */
++	if (priv->hw_info->get_tag_protocol)
++		return priv->hw_info->get_tag_protocol(ds, port);
++
+ 	return priv->hw_info->tag_protocol;
+ }
+ 
+diff -Naur a/drivers/net/dsa/lantiq/mxl-gsw1xx.c b/drivers/net/dsa/lantiq/mxl-gsw1xx.c
+--- a/drivers/net/dsa/lantiq/mxl-gsw1xx.c	2026-01-29 04:52:51.442571012 +0000
++++ b/drivers/net/dsa/lantiq/mxl-gsw1xx.c	2026-01-29 04:52:51.453571012 +0000
+@@ -34,6 +34,7 @@
+ 	struct delayed_work	clear_raneg;
+ 	phy_interface_t		tbi_interface;
+ 	struct gswip_priv	gswip;
++	bool			use_8021q_tag;
+ };
+ 
+ static int gsw1xx_config_smdio_badr(struct gsw1xx_priv *priv,
+@@ -611,6 +612,17 @@
+ 				     "maxlinear,slew-rate-txd", RGMII_SLEW_CFG_DRV_TXD);
+ }
+ 
++
++static enum dsa_tag_protocol gsw1xx_get_tag_protocol(struct dsa_switch *ds,
++						     int port)
++{
++	struct gswip_priv *gswip = ds->priv;
++	struct gsw1xx_priv *priv = container_of(gswip, struct gsw1xx_priv, gswip);
++
++	if (priv->use_8021q_tag)
++		return DSA_TAG_PROTO_NONE;
++	return DSA_TAG_PROTO_MXL_GSW1XX;
++}
+ static struct regmap *gsw1xx_regmap_init(struct gsw1xx_priv *priv,
+ 					 const char *name,
+ 					 unsigned int reg_base,
+@@ -714,6 +726,12 @@
+ 
+ 	INIT_DELAYED_WORK(&priv->clear_raneg, gsw1xx_pcs_clear_raneg);
+ 
++
++	/* Check if 802.1Q tagging is requested (for HNAT) */
++	if (of_property_read_bool(np, "dsa,tag-8021q")) {
++		priv->use_8021q_tag = true;
++		dev_info(&mdiodev->dev, "Using VLAN-based DSA tagging for HNAT\n");
++	}
+ 	ret = gswip_probe_common(&priv->gswip, version);
+ 	if (ret)
+ 		return ret;
+@@ -770,6 +788,7 @@
+ 	.phylink_get_caps	= &gsw1xx_phylink_get_caps,
+ 	.supports_2500m		= true,
+ 	.port_setup		= gsw1xx_port_setup,
++	.get_tag_protocol	= gsw1xx_get_tag_protocol,
+ 	.pce_microcode		= &gsw1xx_pce_microcode,
+ 	.pce_microcode_size	= ARRAY_SIZE(gsw1xx_pce_microcode),
+ 	.tag_protocol		= DSA_TAG_PROTO_MXL_GSW1XX,
+@@ -792,6 +811,7 @@
+ 	.phylink_get_caps	= &gsw1xx_phylink_get_caps,
+ 	.supports_2500m		= true,
+ 	.port_setup		= gsw1xx_port_setup,
++	.get_tag_protocol	= gsw1xx_get_tag_protocol,
+ 	.pce_microcode		= &gsw1xx_pce_microcode,
+ 	.pce_microcode_size	= ARRAY_SIZE(gsw1xx_pce_microcode),
+ 	.tag_protocol		= DSA_TAG_PROTO_MXL_GSW1XX,
+@@ -813,6 +833,7 @@
+ 	.mac_select_pcs		= gsw1xx_phylink_mac_select_pcs,
+ 	.phylink_get_caps	= gsw1xx_phylink_get_caps,
+ 	.port_setup		= gsw1xx_port_setup,
++	.get_tag_protocol	= gsw1xx_get_tag_protocol,
+ 	.pce_microcode		= &gsw1xx_pce_microcode,
+ 	.pce_microcode_size	= ARRAY_SIZE(gsw1xx_pce_microcode),
+ 	.tag_protocol		= DSA_TAG_PROTO_MXL_GSW1XX,

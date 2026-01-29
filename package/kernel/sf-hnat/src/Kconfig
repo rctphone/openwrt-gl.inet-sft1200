@@ -1,0 +1,23 @@
+config SF_HNAT
+	tristate "Siflower SF19A28 Hardware NAT acceleration"
+	depends on NET && NETFILTER
+	select NF_FLOW_TABLE
+	select NF_FLOW_TABLE_INET
+	help
+	  This driver enables hardware NAT acceleration for
+	  Siflower SF19A28/SF19A2890 SoCs. The HNAT engine can
+	  offload NAT/NAPT flows to dedicated hardware, reducing
+	  CPU load for routing tasks.
+
+	  The driver integrates with the TC flower classifier
+	  to receive flow offload requests from nftables flowtable.
+
+	  If unsure, say N.
+
+config SF_HNAT_DEBUG
+	bool "Enable debug output"
+	depends on SF_HNAT
+	default n
+	help
+	  Enable verbose debug output for the HNAT driver.
+	  This increases kernel log verbosity significantly.
