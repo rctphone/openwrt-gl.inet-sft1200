@@ -1,0 +1,20 @@
+From: OpenWRT Community <openwrt@lists.openwrt.org>
+Date: Wed, 29 Jan 2025 00:00:00 +0000
+Subject: [PATCH] sf_wifi: Adapt for Linux 6.12 kernel
+
+Make the Siflower WiFi driver compatible with Linux 6.12 kernel:
+- Fix MY_LINUX_VERSION_CODE to use actual kernel version
+- Update compatibility layer for newer kernel APIs
+
+--- a/sf_smac/src/bb_src/umac/umac_config.mk
++++ b/sf_smac/src/bb_src/umac/umac_config.mk
+@@ -88,8 +88,6 @@ else
+ # MAC80211 and CFG80211 version config
+ # this is because we port the mac80211/cfg80211 from include/generated/uapi/linux/version.h
+ # KERNEL_VERSION(6,6,51): 394803
+-subdir-ccflags-y += -DMY_LINUX_VERSION_CODE=394803
+-subdir-ccflags-$(CONFIG_SF16A18_WIFI_LED) += -DCONFIG_SF16A18_WIFI_LED
+-subdir-ccflags-$(CONFIG_SF19A28_WIFI_LED) += -DCONFIG_SF19A28_WIFI_LED
++# MY_LINUX_VERSION_CODE is now set via NOSTDINC_FLAGS in package Makefile
+ endif
+ endif

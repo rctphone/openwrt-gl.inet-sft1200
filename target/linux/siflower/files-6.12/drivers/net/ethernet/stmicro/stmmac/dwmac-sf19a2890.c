@@ -17,6 +17,27 @@
 #include "stmmac.h"
 #include "stmmac_platform.h"
 
+/*
+ * HNAT integration
+ *
+ * The SF19A2890 has a custom HNAT (Hardware NAT) engine between its
+ * MAC and DMA engines. The HNAT can accelerate NAT/NAPT flows.
+ *
+ * The sf-hnat module provides the actual flow offload implementation.
+ * We export the HNAT base address for it to use.
+ */
+#define SF_HNAT_BASE_OFFSET	0x4000
+#define SF_HNAT_TABLE_OFFSET	0x6000
+
+/* Export HNAT base address for the sf-hnat module */
+static void __iomem *sf19a2890_hnat_base;
+
+void __iomem *sf19a2890_get_hnat_base(void)
+{
+	return sf19a2890_hnat_base;
+}
+EXPORT_SYMBOL_GPL(sf19a2890_get_hnat_base);
+
 struct sf19a2890_gmac_priv {
 	struct device *dev;
 	void __iomem *gmac_cfg;
@@ -158,6 +179,9 @@ static int sf19a2890_gmac_probe(struct platform_device *pdev)
 	 * No idea if it's correct or not.
 	 */
 	plat_dat->flags |= STMMAC_FLAG_HAS_INTEGRATED_PCS;
+
+	/* Store HNAT base for sf-hnat module access */
+	sf19a2890_hnat_base = stmmac_res.addr + SF_HNAT_BASE_OFFSET;
 
 	ret = stmmac_pltfr_probe(pdev, plat_dat, &stmmac_res);
 

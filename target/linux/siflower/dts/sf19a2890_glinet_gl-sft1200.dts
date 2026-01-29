@@ -50,6 +50,45 @@
 		};
 	};
 
+	factory-read {
+		compatible = "siflower,sf19a2890-factory-read";
+
+		/* MAC address */
+		mtd-mac-address = <&factory 0x0>;
+
+		/* Serial number */
+		mtd-sn-number = <&factory 0x6>;
+		mtd-sn-flag = <&factory 0x16>;
+
+		/* Hardware version */
+		mtd-hardware-ver-flag = <&factory 0x1b>;
+		mtd-hardware-ver = <&factory 0x1d>;
+
+		/* Model version */
+		mtd-model-ver-flag = <&factory 0x3d>;
+		mtd-model-ver = <&factory 0x3f>;
+
+		/* Country ID */
+		mtd-country-id = <&factory 0x5f>;
+
+		/* Hardware feature */
+		mtd-hw-feature = <&factory 0x61>;
+
+		/* Vendor info */
+		mtd-vender-flag = <&factory 0x65>;
+		mtd-vender = <&factory 0x67>;
+
+		/* WiFi calibration */
+		mtd-wifi-version = <&factory 0xa5>;
+		mtd-wifi-info = <&factory 0xa7>;
+
+		/* GMAC delay */
+		mtd-gmac-delay = <&factory 0xb2>;
+
+		/* Cooling temperature */
+		mtd-cooling-temp = <&factory 0xb6>;
+	};
+
 };
 
 &gmac {
@@ -67,6 +106,14 @@
 };
 
 &wlan_rf {
+	status = "okay";
+};
+
+&wlan24 {
+	status = "okay";
+};
+
+&wlan5 {
 	status = "okay";
 };
 
@@ -158,6 +205,13 @@
 		reg = <0x1f>;
 		dsa,member = <0 0>;
 		compatible = "maxlinear,gsw140";
+
+		/*
+		 * Use 802.1Q VLAN tagging instead of proprietary DSA tag.
+		 * Required for HNAT hardware acceleration - the HNAT engine
+		 * cannot process the 8-byte MaxLinear DSA header.
+		 */
+		dsa,tag-8021q;
 
 		ports {
 			#address-cells = <1>;

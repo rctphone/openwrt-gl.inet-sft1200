@@ -137,6 +137,44 @@
 			status = "disabled";
 		};
 
+		wlan24: wifi@12400000 {
+			compatible = "siflower,sf19a2890-lb";
+			reg = <0x12400000 0x400000>;
+			interrupts = <GIC_SHARED 176 IRQ_TYPE_LEVEL_HIGH>,
+				     <GIC_SHARED 177 IRQ_TYPE_LEVEL_HIGH>;
+			interrupt-names = "lmac", "umac";
+			clocks = <&wlan24clk 0>, <&wlan24clk 1>, <&wlan24clk 2>,
+				 <&clk CLK_MUXDIV_CPU>, <&clk CLK_MUXDIV_BUS2>,
+				 <&clk CLK_MUXDIV_BUS3>, <&clk CLK_MUXDIV_PBUS>,
+				 <&clk CLK_MUXDIV_WLAN24_PLF>;
+			clock-names = "wlan_axis", "wlan_axim", "wlan_plf",
+				      "clk_cpu", "clk_bus2", "clk_bus3",
+				      "clk_pbus", "clk_wlan_plf";
+			resets = <&wlan24rst 0>;
+			reset-names = "wlan_reset";
+			memory-region = <&wlan24_dsp>;
+			status = "disabled";
+		};
+
+		wlan5: wifi@12800000 {
+			compatible = "siflower,sf19a2890-hb";
+			reg = <0x12800000 0x400000>;
+			interrupts = <GIC_SHARED 178 IRQ_TYPE_LEVEL_HIGH>,
+				     <GIC_SHARED 179 IRQ_TYPE_LEVEL_HIGH>;
+			interrupt-names = "lmac", "umac";
+			clocks = <&wlan5clk 0>, <&wlan5clk 1>, <&wlan5clk 2>,
+				 <&clk CLK_MUXDIV_CPU>, <&clk CLK_MUXDIV_BUS2>,
+				 <&clk CLK_MUXDIV_BUS3>, <&clk CLK_MUXDIV_PBUS>,
+				 <&clk CLK_MUXDIV_WLAN5_PLF>;
+			clock-names = "wlan_axis", "wlan_axim", "wlan_plf",
+				      "clk_cpu", "clk_bus2", "clk_bus3",
+				      "clk_pbus", "clk_wlan_plf";
+			resets = <&wlan5rst 0>;
+			reset-names = "wlan_reset";
+			memory-region = <&wlan5_dsp>;
+			status = "disabled";
+		};
+
 		usb: usb@17000000 {
 			compatible = "siflower,sf19a2890-usb";
 			reg = <0x17000000 0x40000>;
