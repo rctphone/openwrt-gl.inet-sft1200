@@ -205,6 +205,7 @@
 		reg = <0x1f>;
 		dsa,member = <0 0>;
 		compatible = "maxlinear,gsw140";
+		maxlinear,tag-protocol = "8021q";
 
 		/*
 		 * Use 802.1Q VLAN tagging instead of proprietary DSA tag.
