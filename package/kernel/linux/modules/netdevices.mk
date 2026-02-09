@@ -825,6 +825,32 @@ endef
 
 $(eval $(call KernelPackage,dsa-lantiq-gswip-common))
 
+define KernelPackage/dsa-mxl-gsw1xx
+  SUBMENU:=$(NETWORK_DEVICES_MENU)
+  TITLE:=MaxLinear/Intel GSW1xx
+  DEPENDS:=+kmod-dsa-lantiq-gswip-common +kmod-phy-intel-xway
+  KCONFIG:= \
+	CONFIG_NET_DSA_MXL_GSW1XX \
+	CONFIG_NET_DSA_TAG_MXL_GSW1XX \
+	CONFIG_NET_DSA_TAG_8021Q
+  FILES:= \
+	$(LINUX_DIR)/net/dsa/tag_mxl-gsw1xx.ko \
+	$(LINUX_DIR)/net/dsa/tag_8021q.ko \
+	$(LINUX_DIR)/drivers/net/dsa/lantiq/mxl-gsw1xx.ko
+  AUTOLOAD:=$(call AutoLoad,41,tag_mxl-gsw1xx tag_8021q mxl-gsw1xx,1)
+endef
+
+define KernelPackage/dsa-mxl-gsw1xx/description
+  Kernel modules for MaxLinear and Intel 1G switches
+   * Intel GSW150 7 port, 5 PHYs, 1x GMII/RGMII, 1x RGMII
+   * MaxLinear GSW120 4 port, 2 PHYs, RGMII & SGMII/2500Base-X
+   * MaxLinear GSW125 4 port, 2 PHYs, RGMII & SGMII/2500Base-X, industrial temperature
+   * MaxLinear GSW140 6 port, 4 PHYs, RGMII & SGMII/2500Base-X
+   * MaxLinear GSW141 6 port, 4 PHYs, RGMII & SGMII
+   * MaxLinear GSW145 6 port, 4 PHYs, RGMII & SGMII/2500Base-X, industrial temperature
+endef
+
+$(eval $(call KernelPackage,dsa-mxl-gsw1xx))
 define KernelPackage/dsa-mv88e6060
   SUBMENU:=$(NETWORK_DEVICES_MENU)
   TITLE:=Marvell MV88E6060 DSA Switch
