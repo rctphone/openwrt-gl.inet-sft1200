@@ -107,6 +107,16 @@
 
 &wlan_rf {
 	status = "okay";
+	nvmem-cells = <&rf_cali_config_factory_800>;
+	nvmem-cell-names = "rf-cali-config";
+};
+
+&wlan24 {
+	status = "okay";
+};
+
+&wlan5 {
+	status = "okay";
 };
 
 &wlan24 {
@@ -172,6 +182,14 @@
 
 					rgmii_delay_factory_b2: rgmii-delay@b2 {
 						reg = <0xb2 0x4>;
+					};
+
+					/*
+					 * XO calibration config for WiFi RF.
+					 * Vendor DT used "mtd-rf-cali-config = <&factory 0x800>".
+					 */
+					rf_cali_config_factory_800: rf-cali-config@800 {
+						reg = <0x800 0x4>;
 					};
 				};
 			};
