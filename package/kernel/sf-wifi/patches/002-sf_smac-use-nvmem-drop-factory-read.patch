@@ -1,0 +1,417 @@
+diff --git a/sf_smac/src/bb_src/umac/fullmac/siwifi_main.c b/sf_smac/src/bb_src/umac/fullmac/siwifi_main.c
+--- a/sf_smac/src/bb_src/umac/fullmac/siwifi_main.c	2026-02-09 20:17:19
++++ b/sf_smac/src/bb_src/umac/fullmac/siwifi_main.c	2026-02-09 20:17:19
+@@ -9,9 +9,6 @@
+ #include <linux/of.h>
+ #include <linux/of_device.h>
+ #include <linux/timer.h>
+-#ifdef CONFIG_SFAX8_FACTORY_READ
+-#include <sfax8_factory_read.h>
+-#endif
+ #include "siwifi_defs.h"
+ #include "siwifi_mpw0.h"
+ #include "siwifi_msg_tx.h"
+@@ -3926,15 +3923,7 @@
+         wiphy_err(wiphy, "siwifi_parse_configfile failed\n");
+         goto err_config;
+     }
+-#ifdef CONFIG_SFAX8_FACTORY_READ
+-    if (!sf_get_value_from_factory(
+-                ((1 << siwifi_hw->mod_params->is_hb) == LB_MODULE) ? READ_WIFI_LB_MAC_ADDRESS : READ_WIFI_HB_MAC_ADDRESS,
+-                init_conf.mac_addr, 6)) {
+-        printk("get wifi address from factory\n");
+-    } else if (eth_platform_get_mac_address(siwifi_hw->dev, init_conf.mac_addr) >= 0) {
+-#else
+     if (eth_platform_get_mac_address(siwifi_hw->dev, init_conf.mac_addr) >= 0) {
+-#endif
+         inc_sf_mac_addr(&init_conf.mac_addr[0], (((1 << siwifi_hw->mod_params->is_hb) == LB_MODULE) ? 2 : 6));
+     } else {
+         eth_random_addr(init_conf.mac_addr);
+diff --git a/sf_smac/src/bb_src/umac/siwifi_factory_info.c b/sf_smac/src/bb_src/umac/siwifi_factory_info.c
+--- a/sf_smac/src/bb_src/umac/siwifi_factory_info.c	2026-02-09 20:17:19
++++ b/sf_smac/src/bb_src/umac/siwifi_factory_info.c	2026-02-09 20:17:19
+@@ -2,14 +2,73 @@
+ #include "siwifi_factory_info.h"
+ #include "siwifi_lmac_glue.h"
+ #include "siwifi_cfgfile.h"
+-#ifdef CONFIG_SFAX8_FACTORY_READ
+-#include <sfax8_factory_read.h>
+-#else
++#include <linux/device.h>
++#include <linux/nvmem-consumer.h>
++#include <linux/of.h>
++#include <linux/slab.h>
++
+ #define XO_CONFIG_SIZE 2
+ #define WIFI_INFO_SIZE 2046
+ #define WIFI_INFO_SIZE_V4 3380
+-#endif
+ #include "siwifi_mem.h"
++
++static int sf_wifi_read_nvmem(struct device *dev, const char *name, u8 **buf, size_t *len)
++{
++	struct nvmem_cell *cell;
++
++	cell = of_nvmem_cell_get(dev->of_node, name);
++	if (IS_ERR(cell))
++		return PTR_ERR(cell);
++
++	*buf = (u8 *)nvmem_cell_read(cell, len);
++	nvmem_cell_put(cell);
++	if (IS_ERR(*buf))
++		return PTR_ERR(*buf);
++
++	return 0;
++}
++
++static int sf_wifi_rf_cali_config_get_nvmem(struct device *dev, u16 *value)
++{
++	struct nvmem_cell *cell;
++	const u8 *buf;
++	size_t len;
++	int ret = 0;
++
++	/* DT binding: nvmem-cell-names = "rf-cali-config" */
++	cell = of_nvmem_cell_get(dev->of_node, "rf-cali-config");
++	if (IS_ERR(cell))
++		return PTR_ERR(cell);
++
++	buf = nvmem_cell_read(cell, &len);
++	nvmem_cell_put(cell);
++	if (IS_ERR(buf))
++		return PTR_ERR(buf);
++
++	if (len == 2) {
++		/* Match vendor behavior: raw bytes copied into u16 on LE. */
++		*value = buf[0] | (buf[1] << 8);
++		goto out;
++	}
++
++	if (len < 4) {
++		ret = -EINVAL;
++		goto out;
++	}
++
++	/* Vendor format: 4 bytes with a marker then little-endian u16. */
++	if ((buf[0] == 'X' && buf[1] == 'O') ||
++	    (buf[0] == 'V' && (buf[1] == '2' || buf[1] == '3' || buf[1] == '4'))) {
++		*value = buf[2] | (buf[3] << 8);
++	} else {
++		ret = -EINVAL;
++	}
++
++out:
++	kfree(buf);
++	return ret;
++}
++
+ static int sf_wifi_init_normal_txpower_list(
+                 struct siwifi_factory_info *factory_info,
+                 int lb,
+@@ -175,9 +234,6 @@
+ int sf_wifi_init_wifi_factory_info(struct siwifi_hw *siwifi_hw)
+ {
+     int ret = 0;
+-#ifdef CONFIG_SFAX8_FACTORY_READ
+-    char buf[WIFI_VERSION_SIZE];
+-#endif
+     struct mpw0_plat_data *priv =
+                     (struct mpw0_plat_data *)&siwifi_hw->plat->priv;
+     int lb = priv->band & LB_MODULE;
+@@ -228,27 +284,30 @@
+    goto read_xo_value;
+   }
+  }
+- else{
++  else{
+  }
+-#ifdef CONFIG_SFAX8_FACTORY_READ
+-    ret = sf_get_value_from_factory(
+-                    READ_WIFI_VERSION, buf, WIFI_VERSION_SIZE);
+-    if (ret) {
+-        factory_info->version = 0;
+-    } else {
+-        factory_info->version = sf_wifi_check_calibration_table_available(buf);
+-    }
+- if (sf_get_value_from_factory(
+-                        READ_WIFI_INFO, wifi_info_buf, wifi_info_size)) {
+-        printk("can not get READ_LB_MORE_INFO from factory\n");
+-        factory_info->version = 0;
+-    }else{
+-  printk("txpower calibration table use factory info\n");
+-  goto read_xo_value;
+- }
+-#else
++
++	/* Try reading the calibration blob directly from NVMEM (factory). */
++	{
++		u8 *nv = NULL;
++		size_t nv_len = 0;
++
++		ret = sf_wifi_read_nvmem(siwifi_hw->dev, "txpower-cali-config", &nv, &nv_len);
++		if (!ret && nv_len >= size_calitable) {
++			memcpy(txpower_table_value, nv, size_calitable);
++			factory_info->version =
++				sf_wifi_check_calibration_table_available((char *)&txpower_table_value[2048]);
++			if (factory_info->version) {
++				printk("txpower calibration table use NVMEM\n");
++				memcpy(wifi_info_buf, &txpower_table_value[2050], wifi_info_size);
++				kfree(nv);
++				goto read_xo_value;
++			}
++		}
++		kfree(nv);
++	}
++
+     factory_info->version = 0;
+-#endif
+  if(factory_info->version == 0){
+   if ((phy_tag->flag & RF_EXTERNAL_PA_ENABLE)) {
+    fp_read = filp_open(second_txpower_expa_table_file, O_RDONLY , 0);
+@@ -275,10 +334,7 @@
+   }
+  }
+ read_xo_value:
+-#ifdef CONFIG_SFAX8_FACTORY_READ
+- if (sf_get_value_from_factory(
+-                        READ_RF_XO_CONFIG, &xo_value, XO_CONFIG_SIZE)) {
+-#endif
++ if (sf_wifi_rf_cali_config_get_nvmem(siwifi_hw->dev, &xo_value)) {
+   fp_read = filp_open(second_txpower_table_file, O_RDONLY , 0);
+   if(!IS_ERR(fp_read)){
+    memset(txpower_table_value, 0, size_calitable);
+@@ -296,9 +352,7 @@
+   else{
+    goto err;
+   }
+-#ifdef CONFIG_SFAX8_FACTORY_READ
+-    }
+-#endif
++ }
+  factory_info->xo_value = xo_value;
+     switch (factory_info->version) {
+     case 1:
+diff --git a/sf_smac/src/bb_src/umac/siwifi_factory_info.h b/sf_smac/src/bb_src/umac/siwifi_factory_info.h
+--- a/sf_smac/src/bb_src/umac/siwifi_factory_info.h	2026-02-09 20:17:19
++++ b/sf_smac/src/bb_src/umac/siwifi_factory_info.h	2026-02-09 20:17:19
+@@ -1,9 +1,7 @@
+ #ifndef _SIWIFI_FACTORY_INFO_H_
+ #define _SIWIFI_FACTORY_INFO_H_ 
+ #include "siwifi_defs.h"
+-#ifdef CONFIG_SFAX8_FACTORY_READ
+-#include <sfax8_factory_read.h>
+-#endif
++
+ #define LB_ONE_CHAN_GAIN_NUM 28
+ #define HB_ONE_CHAN_GAIN_NUM 53
+ #define LB_CHANNEL_COUNT 13
+diff --git a/sf_smac/src/bb_src/umac/siwifi_mpw0.c b/sf_smac/src/bb_src/umac/siwifi_mpw0.c
+--- a/sf_smac/src/bb_src/umac/siwifi_mpw0.c	2026-02-09 20:17:19
++++ b/sf_smac/src/bb_src/umac/siwifi_mpw0.c	2026-02-09 20:17:19
+@@ -9,9 +9,6 @@
+ #include <linux/of.h>
+ #include <linux/of_device.h>
+ #include <linux/reset.h>
+-#ifdef CONFIG_SFAX8_FACTORY_READ
+-#include <sfax8_factory_read.h>
+-#endif
+ #ifdef CONFIG_SF16A18_WIFI_RF
+ #include "rf_pl_ref.h"
+ #endif
+diff --git a/sf_smac/src/rf/rf_entry.c b/sf_smac/src/rf/rf_entry.c
+--- a/sf_smac/src/rf/rf_entry.c	2026-02-09 20:17:19
++++ b/sf_smac/src/rf/rf_entry.c	2026-02-09 20:17:19
+@@ -8,9 +8,9 @@
+ #include <linux/platform_device.h>
+ #include <linux/firmware.h>
+ #include <linux/of_net.h>
+-#include <linux/mtd/mtd.h>
+ #include <linux/of_gpio.h>
+ #include <linux/gpio.h>
++#include <linux/nvmem-consumer.h>
+ #include <linux/thermal.h>
+ #include <linux/uaccess.h>
+ #include <linux/fs.h>
+@@ -18,9 +18,6 @@
+ #ifdef COOLING_TEMP
+ #include <sfax8_thermal.h>
+ #endif
+-#ifdef CONFIG_SFAX8_FACTORY_READ
+-#include <sfax8_factory_read.h>
+-#endif
+ #ifdef CONFIG_SF16A18_RF_SYSFS_DEBUG
+ #include "rf_sysfs.h"
+ #endif
+@@ -541,25 +538,10 @@
+ #ifdef CFG_DUAL_ANTENNA_CALIBRATE
+     unsigned int dual_antenna_calibrate = 0;
+ #endif
+-#ifdef CONFIG_SFAX8_FACTORY_READ
+-    char buf[2];
+-#endif
+     priv->lb_ex_pa_exist = 0;
+     priv->hb_ex_pa_exist = 0;
+     gpio_num = 0;
+-#ifdef CONFIG_SFAX8_FACTORY_READ
+-    if (!sf_get_value_from_factory(READ_WIFI_VERSION, buf, WIFI_VERSION_SIZE)){
+-        if(((buf[0] == 'V')&& (buf[1] == '3' || buf[1] == '2')) || (buf[0] == 'X' && buf[1] == 'O'))
+-            priv->cali_table_version = 1;
+-  else
+-   priv->cali_table_version = 2;
+-    }
+-    else{
+-        priv->cali_table_version = 2;
+-    }
+-#else
+     priv->cali_table_version = 2;
+-#endif
+ #ifdef CFG_DUAL_ANTENNA_CALIBRATE
+     priv->dual_antenna_calibrate = 0;
+     if (of_property_read_u32(pdev->dev.of_node, "dual-antenna-calibrate", &dual_antenna_calibrate)){
+@@ -570,11 +552,7 @@
+     } else {
+         printk("dual antenna calibration is off\n");
+     }
+-#ifdef CONFIG_SFAX8_FACTORY_READ
+-    printk("priv->cali_table_version = %d---%c%c dual_antenna_calibrate = %d  \n", priv->cali_table_version, buf[0],
+-           buf[1], priv->dual_antenna_calibrate);
+ #endif
+-#endif
+     if (of_property_read_u32(pdev->dev.of_node, "force_expa", &force_expa)) {
+         force_expa = 0;
+     }
+@@ -712,56 +690,51 @@
+     return feature;
+ }
+ EXPORT_SYMBOL_GPL(sf_wifi_rf_get_feature);
+-static uint16_t sf_wifi_rf_cali_config_get_mtd(struct platform_device *pdev)
++
++static int sf_wifi_rf_cali_config_get_nvmem(struct platform_device *pdev, u16 *value)
+ {
+-    uint16_t value = 0;
+-    struct device_node *mtd_np = NULL;
+-    struct mtd_info *mtd;
+-    size_t retlen;
+-    int size;
+-    const char *part;
+-    const __be32 *list;
+-    unsigned char ret[5] = {0};
+-    phandle phandle;
+-    list = of_get_property(pdev->dev.of_node, "mtd-rf-cali-config", &size);
+-    if (!list || (size != (2 * sizeof(*list)))) {
+-        printk("error! size %d, %d\n", size, sizeof(*list));
+-        return 0;
+-    }
+-    phandle = be32_to_cpup(list++);
+-    if (phandle)
+-        mtd_np = of_find_node_by_phandle(phandle);
+-    if (!mtd_np)
+-        return 0;
+-    part = of_get_property(mtd_np, "label", NULL);
+-    if (!part)
+-        part = mtd_np->name;
+-    mtd = get_mtd_device_nm(part);
+-    if (IS_ERR(mtd))
+-        return 0;
+-    if (mtd_read(mtd, be32_to_cpup(list), 4, &retlen, (u_char *)ret)) {
+-        printk("get config from mtd error\n");
+-        put_mtd_device(mtd);
+-        return 0;
+-    }
+-    if ((ret[0] == 'X' && ret[1] == 'O') || ((ret[0] == 'V') && (ret[1] == '2' || ret[1] =='3' || ret[1]=='4'))) {
+-        value = (ret[2] << 8) | ret[3];
+-    } else
+-        printk("Do not find XO cali value in flash,mark is %c%c\n", ret[0], ret[1]);
+-    put_mtd_device(mtd);
+-    return value;
++	struct nvmem_cell *cell;
++	const u8 *buf;
++	size_t len;
++	int ret = 0;
++
++	cell = of_nvmem_cell_get(pdev->dev.of_node, "rf-cali-config");
++	if (IS_ERR(cell))
++		return PTR_ERR(cell);
++
++	buf = nvmem_cell_read(cell, &len);
++	nvmem_cell_put(cell);
++	if (IS_ERR(buf))
++		return PTR_ERR(buf);
++
++	if (len == 2) {
++		/* Match vendor behavior: raw bytes copied into u16 on LE. */
++		*value = buf[0] | (buf[1] << 8);
++		goto out;
++	}
++
++	if (len < 4) {
++		ret = -EINVAL;
++		goto out;
++	}
++
++	/* Vendor format: 4 bytes with a marker then little-endian u16. */
++	if ((buf[0] == 'X' && buf[1] == 'O') ||
++	    (buf[0] == 'V' && (buf[1] == '2' || buf[1] == '3' || buf[1] == '4'))) {
++		*value = buf[2] | (buf[3] << 8);
++	} else {
++		ret = -EINVAL;
++	}
++
++out:
++	kfree(buf);
++	return ret;
+ }
+ static int sf_wifi_rf_cali_config_get(struct platform_device *pdev,struct rf_pl_context *priv)
+ {
+     uint16_t value = 0;
+-#ifdef CONFIG_SFAX8_FACTORY_READ
+-    if (sf_get_value_from_factory(READ_RF_XO_CONFIG, &value, XO_CONFIG_SIZE)) {
+-        printk("get XO config from sf_factory_read failed\n");
+-#endif
+-        value = sf_wifi_rf_cali_config_get_mtd(pdev);
+-#ifdef CONFIG_SFAX8_FACTORY_READ
+-    }
+-#endif
++
++	(void)sf_wifi_rf_cali_config_get_nvmem(pdev, &value);
+     printk("XO config value : %x\n", value);
+     priv->xo_config = value;
+     return 0;
+@@ -1208,35 +1181,8 @@
+ };
+ int sf_wifi_set_thermal_state(void)
+ {
+-#ifdef CONFIG_SFAX8_FACTORY_READ
+-    char cool_temp[COOLING_TEMP_SIZE] = "00";
+-    int tmp_thermal_state;
+-    if (sf_get_value_from_factory(READ_COOLING_TEMP, &cool_temp, COOLING_TEMP_SIZE)){
+-        printk("get cooling temp from sf_factory_read failed\n");
+-        return -1;
+-    }else
+-        printk("read cooling temp(0x%x%x) from factory",
+-                cool_temp[0], cool_temp[1]);
+-    if (cool_temp[0] > 100){
+-        printk("factory temp is abnormal!");
+-            return 0;
+-    }
+-    else{
+-  if(cool_temp[1]==1)
+-  {
+-    printk("factory store temp %d below zero ",cool_temp[0]);
+-    cool_temp[0] = ~cool_temp[0] - 255;
+-    printk("cool_temp[0] is %d",cool_temp[0]);
+-  }
+-       tmp_thermal_state = (cool_temp[0]+20)/5 +1;
+-    }
+-    thermal_state = tmp_thermal_state;
+-    printk("set thermal_state : %d",thermal_state);
+-    return 0;
+-#else
+-    printk("Can not get cooling temp due to CONFIG_SFAX8_FACTORY_READ is not set\n");
+-    return -1;
+-#endif
++	/* Cooling temp is optional. If not available, keep defaults. */
++	return 0;
+ }
+ #endif
+ int sf_wifi_rf_probe(struct platform_device *pdev)
