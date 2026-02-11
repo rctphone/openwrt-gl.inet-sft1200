@@ -32,6 +32,7 @@
 /* Export HNAT base address for the sf-hnat module */
 static void __iomem *sf19a2890_hnat_base;
 
+void __iomem *sf19a2890_get_hnat_base(void);
 void __iomem *sf19a2890_get_hnat_base(void)
 {
 	return sf19a2890_hnat_base;
