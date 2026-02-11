@@ -589,7 +589,6 @@ int sf_hnat_flow_stats(struct sf_hnat_priv *priv,
 int sf_hnat_setup_tc_block_cb(enum tc_setup_type type, void *type_data,
 			      void *cb_priv)
 {
-	struct net_device *dev = cb_priv;
 	struct sf_hnat_priv *priv = g_sf_hnat;
 	struct flow_cls_offload *cls = type_data;
 
