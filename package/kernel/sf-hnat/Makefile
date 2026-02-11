@@ -18,7 +18,7 @@ include $(INCLUDE_DIR)/package.mk
 define KernelPackage/sf-hnat
   SUBMENU:=Network Devices
   TITLE:=Siflower SF19A28 Hardware NAT driver
-  DEPENDS:=@TARGET_siflower +kmod-nf-flow-table
+  DEPENDS:=@TARGET_siflower +kmod-nf-flow
   FILES:=$(PKG_BUILD_DIR)/sf-hnat.ko
   AUTOLOAD:=$(call AutoLoad,45,sf-hnat)
   KCONFIG:=
