@@ -27,14 +27,14 @@ tag_8021q. It does not attempt to offload Linux bridge operations when
 
 Signed-off-by: Codex <codex@openai.com>
 ---
- drivers/net/dsa/lantiq/lantiq_gswip.h        |  3 +
- drivers/net/dsa/lantiq/lantiq_gswip_common.c | 99 +++++++++++++++++++-
- 2 files changed, 100 insertions(+), 2 deletions(-)
+ drivers/net/dsa/lantiq/lantiq_gswip.h        |    3 
+ drivers/net/dsa/lantiq/lantiq_gswip_common.c |  145 ++++++++++++++++++++++++---
+ 2 files changed, 133 insertions(+), 15 deletions(-)
 
 --- a/drivers/net/dsa/lantiq/lantiq_gswip.h
 +++ b/drivers/net/dsa/lantiq/lantiq_gswip.h
-@@ -275,6 +275,9 @@ struct gswip_priv {
- 	u32 port_vlan_filter;
+@@ -288,6 +288,9 @@ struct gswip_priv {
+ 	struct gswip_gphy_fw *gphy_fw;
  	struct mutex pce_table_lock;
  	u16 version;
 +
@@ -42,19 +42,20 @@ Signed-off-by: Codex <codex@openai.com>
 +	u16 *tag_8021q_pvid;
  };
  
- void gswip_disable_switch(struct gswip_priv *priv);
+ int gswip_probe_common(struct gswip_priv *priv, u32 version);
 --- a/drivers/net/dsa/lantiq/lantiq_gswip_common.c
 +++ b/drivers/net/dsa/lantiq/lantiq_gswip_common.c
-@@ -37,6 +37,7 @@
+@@ -30,6 +30,7 @@
+ 
  #include "lantiq_gswip.h"
  
 +#include <linux/err.h>
  #include <linux/delay.h>
  #include <linux/etherdevice.h>
  #include <linux/if_bridge.h>
-@@ -92,6 +93,46 @@ static const struct gswip_rmon_cnt_desc
- 
- #define MIB_DESC(_size, _offset, _name) {.size = _size, .offset = _offset, .name = _name}
+@@ -61,6 +62,41 @@ struct gswip_rmon_cnt_desc {
+ 	const char *name;
+ };
  
 +/* Key used in priv->vlans[] for DSA tag_8021q internal VLANs. */
 +#define GSWIP_VLAN_BRIDGE_DSA_8021Q ((struct net_device *)ERR_PTR(-EINVAL))
@@ -91,198 +92,10 @@ Signed-off-by: Codex <codex@openai.com>
 +	return priv->hw_info->tag_protocol;
 +}
 +
+ #define MIB_DESC(_size, _offset, _name) {.size = _size, .offset = _offset, .name = _name}
+ 
  static const struct gswip_rmon_cnt_desc gswip_rmon_cnt[] = {
- 	/** Receive Packet Count (only packets that are accepted and not discarded). */
- 	MIB_DESC(1, 0x1F, "RxGoodPkts"),
-@@ -649,6 +696,7 @@ static int gswip_setup(struct dsa_switch
- {
- 	unsigned int cpu_ports = dsa_cpu_ports(ds);
- 	struct gswip_priv *priv = ds->priv;
-+	enum dsa_tag_protocol tag_proto = gswip_tag_protocol(priv);
- 	struct dsa_port *cpu_dp;
- 	int err, i;
- 
-@@ -658,7 +706,8 @@ static int gswip_setup(struct dsa_switch
- 	/* disable port fetch/store dma on all ports */
- 	for (i = 0; i < priv->hw_info->max_ports; i++) {
- 		gswip_port_disable(ds, i);
--		gswip_port_vlan_filtering(ds, i, false, NULL);
-+		gswip_port_vlan_filtering(ds, i,
-+					  tag_proto == DSA_TAG_PROTO_8021Q, NULL);
- 	}
- 
- 	/* enable Switch */
-@@ -737,16 +786,26 @@ static int gswip_setup(struct dsa_switch
- 
- 	dsa_switch_for_each_cpu_port(cpu_dp, ds) {
--		/* enable special tag insertion on cpu port */
--		regmap_set_bits(priv->gswip, GSWIP_FDMA_PCTRLp(cpu_dp->index),
--				GSWIP_FDMA_PCTRL_STEN);
--
--		/* accept special tag in ingress direction */
--		regmap_set_bits(priv->gswip,
--				GSWIP_PCE_PCTRL_0p(cpu_dp->index),
--				GSWIP_PCE_PCTRL_0_INGRESS);
-+		if (tag_proto == DSA_TAG_PROTO_8021Q) {
-+			/* Make sure the proprietary special-tag path is off. */
-+			regmap_clear_bits(priv->gswip,
-+					  GSWIP_FDMA_PCTRLp(cpu_dp->index),
-+					  GSWIP_FDMA_PCTRL_STEN);
-+			regmap_clear_bits(priv->gswip,
-+					  GSWIP_PCE_PCTRL_0p(cpu_dp->index),
-+					  GSWIP_PCE_PCTRL_0_INGRESS);
-+		} else {
-+			/* enable special tag insertion on cpu port */
-+			regmap_set_bits(priv->gswip,
-+					GSWIP_FDMA_PCTRLp(cpu_dp->index),
-+					GSWIP_FDMA_PCTRL_STEN);
-+
-+			/* accept special tag in ingress direction */
-+			regmap_set_bits(priv->gswip,
-+					GSWIP_PCE_PCTRL_0p(cpu_dp->index),
-+					GSWIP_PCE_PCTRL_0_INGRESS);
-+		}
- 	}
- 
- 	regmap_set_bits(priv->gswip, GSWIP_BM_QUEUE_GCTRL,
-@@ -764,7 +823,7 @@ static enum dsa_tag_protocol gswip_get_t
- 						    enum dsa_tag_protocol mp)
- {
- 	struct gswip_priv *priv = ds->priv;
- 
--	return priv->hw_info->tag_protocol;
-+	return gswip_tag_protocol(priv);
- }
- 
- static int gswip_vlan_active_create(struct gswip_priv *priv,
-@@ -836,7 +895,7 @@ static int gswip_vlan_add(struct gswip_p
- 	/* Check if there is already a page for this bridge */
- 	for (i = max_ports; i < ARRAY_SIZE(priv->vlans); i++) {
- 		if (priv->vlans[i].bridge == bridge) {
--			if (vlan_aware && bridge) {
-+			if (vlan_aware && bridge && !IS_ERR(bridge)) {
- 				if (fid != -1 && fid != priv->vlans[i].fid)
- 					dev_err(priv->dev, "one bridge with multiple flow ids\n");
- 				fid = priv->vlans[i].fid;
-@@ -916,8 +975,17 @@ static int gswip_vlan_remove(struct gswip
- 	}
- 
- 	if (idx == -1) {
-+		const char *name = "(null)";
-+
-+		if (IS_ERR(bridge))
-+			name = "(dsa-8021q)";
-+		else if (bridge)
-+			name = bridge->name;
-+
- 		dev_err(priv->dev, "Port %d cannot find VID %u of bridge %s\n",
--			port, vid, bridge ? bridge->name : "(null)");
-+			port, vid, name);
- 		return -ENOENT;
- 	}
- 
-@@ -932,6 +1000,11 @@ static int gswip_port_bridge_join(struct
- 	struct net_device *br = bridge.dev;
- 	struct gswip_priv *priv = ds->priv;
- 	int err;
-+
-+	if (gswip_tag_protocol(priv) == DSA_TAG_PROTO_8021Q) {
-+		*tx_fwd_offload = false;
-+		return 0;
-+	}
- 
- 	/* Set up the VLAN for VLAN-unaware bridging for this port, and remove
- 	 * it from the "single-port bridge" through which it was operating as
-@@ -951,10 +1024,13 @@ static void gswip_port_bridge_leave(stru
- 	struct net_device *br = bridge.dev;
- 	struct gswip_priv *priv = ds->priv;
- 
-+	if (gswip_tag_protocol(priv) == DSA_TAG_PROTO_8021Q)
-+		return;
-+
- 	/* Add the port back to the "single-port bridge", and remove it from
- 	 * the VLAN-unaware PVID created for this bridge.
- 	 */
- 	gswip_add_single_port_br(priv, port, true);
-@@ -966,16 +1042,27 @@ static int gswip_port_vlan_prepare(struc
- 				   const struct switchdev_obj_port_vlan *vlan,
- 				   struct netlink_ext_ack *extack)
- {
- 	struct net_device *bridge = dsa_port_bridge_dev_get(dsa_to_port(ds, port));
- 	struct gswip_priv *priv = ds->priv;
-+	struct net_device *key = bridge;
-+	bool is_8021q = gswip_tag_protocol(priv) == DSA_TAG_PROTO_8021Q;
- 	unsigned int max_ports = priv->hw_info->max_ports;
- 	int pos = max_ports;
- 	int i, idx = -1;
- 
- 	/* We only support VLAN filtering on bridges */
--	if (!dsa_is_cpu_port(ds, port) && !bridge)
-+	if (!dsa_is_cpu_port(ds, port) && !bridge && !is_8021q)
- 		return -EOPNOTSUPP;
-+
-+	/* DSA tag_8021q internal VLANs must not be tied to a Linux bridge. */
-+	if (is_8021q && (vlan->flags & BRIDGE_VLAN_INFO_PVID))
-+		key = GSWIP_VLAN_BRIDGE_DSA_8021Q;
- 
- 	/* Check if there is already a page for this VLAN */
- 	for (i = max_ports; i < ARRAY_SIZE(priv->vlans); i++) {
--		if (priv->vlans[i].bridge == bridge &&
-+		if (priv->vlans[i].bridge == key &&
- 		    priv->vlans[i].vid == vlan->vid) {
- 			idx = i;
- 			break;
-@@ -1010,13 +1097,17 @@ static int gswip_port_vlan_add(struct ds
- {
- 	struct net_device *bridge = dsa_port_bridge_dev_get(dsa_to_port(ds, port));
- 	struct gswip_priv *priv = ds->priv;
-+	struct net_device *key = bridge;
- 	bool untagged = vlan->flags & BRIDGE_VLAN_INFO_UNTAGGED;
- 	bool pvid = vlan->flags & BRIDGE_VLAN_INFO_PVID;
- 	int err;
- 
- 	if (vlan->vid == GSWIP_VLAN_UNAWARE_PVID)
- 		return 0;
- 
- 	if (gswip_tag_protocol(priv) == DSA_TAG_PROTO_8021Q &&
- 	    priv->tag_8021q_pvid && pvid && !dsa_is_cpu_port(ds, port))
- 		priv->tag_8021q_pvid[port] = vlan->vid;
-+
-+	if (gswip_tag_protocol(priv) == DSA_TAG_PROTO_8021Q && pvid)
-+		key = GSWIP_VLAN_BRIDGE_DSA_8021Q;
- 
- 	err = gswip_port_vlan_prepare(ds, port, vlan, extack);
- 	if (err)
- 		return err;
-@@ -1037,7 +1128,7 @@ static int gswip_port_vlan_add(struct ds
- 	if (dsa_is_cpu_port(ds, port))
- 		return 0;
- 
--	return gswip_vlan_add(priv, bridge, port, vlan->vid, untagged, pvid,
-+	return gswip_vlan_add(priv, key, port, vlan->vid, untagged, pvid,
- 			      true);
- }
- 
-@@ -1047,7 +1138,9 @@ static int gswip_port_vlan_del(struct ds
- {
- 	struct net_device *bridge = dsa_port_bridge_dev_get(dsa_to_port(ds, port));
- 	struct gswip_priv *priv = ds->priv;
-+	struct net_device *key = bridge;
- 
- 	if (vlan->vid == GSWIP_VLAN_UNAWARE_PVID)
- 		return 0;
-@@ -1064,6 +1157,10 @@ static int gswip_port_vlan_del(struct ds
- 	if (dsa_is_cpu_port(ds, port))
- 		return 0;
- 
--	return gswip_vlan_remove(priv, bridge, port, vlan->vid);
-+	if (gswip_tag_protocol(priv) == DSA_TAG_PROTO_8021Q &&
-+	    (vlan->flags & BRIDGE_VLAN_INFO_PVID))
-+		key = GSWIP_VLAN_BRIDGE_DSA_8021Q;
-+
-+	return gswip_vlan_remove(priv, key, port, vlan->vid);
- }
-@@ -1181,6 +1278,28 @@ static void gswip_port_commit_pvid(struc
+@@ -523,6 +559,27 @@ static void gswip_port_commit_pvid(struct gswip_priv *
  	if (!dsa_port_is_user(dp))
  		return;
  
@@ -310,8 +123,7 @@ Signed-off-by: Codex <codex@openai.com>
  	if (br) {
  		u16 pvid = GSWIP_VLAN_UNAWARE_PVID;
  
-@@ -1214,6 +1333,7 @@ static void gswip_port_commit_pvid(struc
- 		 */
+@@ -549,6 +606,7 @@ static void gswip_port_commit_pvid(struct gswip_priv *
  		idx = port + 1;
  	}
  
@@ -319,7 +131,8 @@ Signed-off-by: Codex <codex@openai.com>
  	vinr = idx ? GSWIP_PCE_VCTRL_VINR_ALL : GSWIP_PCE_VCTRL_VINR_TAGGED;
  	regmap_write_bits(priv->gswip, GSWIP_PCE_VCTRL(port),
  			  GSWIP_PCE_VCTRL_VINR,
-@@ -1235,6 +1356,11 @@ static int gswip_port_vlan_filtering(struct dsa_switch *ds, int port,
+@@ -568,6 +626,10 @@ static int gswip_port_vlan_filtering(struct dsa_switch
+ {
  	struct gswip_priv *priv = ds->priv;
  
 +	/* tag_8021q requires tag-based VLAN mode regardless of Linux bridge. */
@@ -329,16 +142,202 @@ Signed-off-by: Codex <codex@openai.com>
  	if (vlan_filtering) {
  		/* Use tag based VLAN */
  		regmap_write_bits(priv->gswip, GSWIP_PCE_VCTRL(port),
-@@ -1692,6 +1812,14 @@ int gswip_probe_common(struct gswip_priv
+@@ -644,6 +706,7 @@ static int gswip_setup(struct dsa_switch *ds)
+ {
+ 	unsigned int cpu_ports = dsa_cpu_ports(ds);
+ 	struct gswip_priv *priv = ds->priv;
++	enum dsa_tag_protocol tag_proto = gswip_tag_protocol(priv);
+ 	struct dsa_port *cpu_dp;
+ 	int err, i;
+ 
+@@ -654,7 +717,8 @@ static int gswip_setup(struct dsa_switch *ds)
+ 	/* disable port fetch/store dma on all ports */
+ 	for (i = 0; i < priv->hw_info->max_ports; i++) {
+ 		gswip_port_disable(ds, i);
+-		gswip_port_vlan_filtering(ds, i, false, NULL);
++		gswip_port_vlan_filtering(ds, i,
++					  tag_proto == DSA_TAG_PROTO_8021Q, NULL);
+ 	}
+ 
+ 	/* enable Switch */
+@@ -706,14 +770,25 @@ static int gswip_setup(struct dsa_switch *ds)
+ 				   0, i);
+ 
+ 	dsa_switch_for_each_cpu_port(cpu_dp, ds) {
+-		/* enable special tag insertion on cpu port */
+-		regmap_set_bits(priv->gswip, GSWIP_FDMA_PCTRLp(cpu_dp->index),
+-				GSWIP_FDMA_PCTRL_STEN);
++		if (tag_proto == DSA_TAG_PROTO_8021Q) {
++			/* Make sure the proprietary special-tag path is off. */
++			regmap_clear_bits(priv->gswip,
++					  GSWIP_FDMA_PCTRLp(cpu_dp->index),
++					  GSWIP_FDMA_PCTRL_STEN);
++			regmap_clear_bits(priv->gswip,
++					  GSWIP_PCE_PCTRL_0p(cpu_dp->index),
++					  GSWIP_PCE_PCTRL_0_INGRESS);
++		} else {
++			/* enable special tag insertion on cpu port */
++			regmap_set_bits(priv->gswip,
++					GSWIP_FDMA_PCTRLp(cpu_dp->index),
++					GSWIP_FDMA_PCTRL_STEN);
+ 
+-		/* accept special tag in ingress direction */
+-		regmap_set_bits(priv->gswip,
+-				GSWIP_PCE_PCTRL_0p(cpu_dp->index),
+-				GSWIP_PCE_PCTRL_0_INGRESS);
++			/* accept special tag in ingress direction */
++			regmap_set_bits(priv->gswip,
++					GSWIP_PCE_PCTRL_0p(cpu_dp->index),
++					GSWIP_PCE_PCTRL_0_INGRESS);
++		}
+ 	}
+ 
+ 	regmap_set_bits(priv->gswip, GSWIP_BM_QUEUE_GCTRL,
+@@ -752,7 +827,7 @@ static enum dsa_tag_protocol gswip_get_tag_protocol(st
+ {
+ 	struct gswip_priv *priv = ds->priv;
+ 
+-	return priv->hw_info->tag_protocol;
++	return gswip_tag_protocol(priv);
+ }
+ 
+ static int gswip_vlan_active_create(struct gswip_priv *priv,
+@@ -868,7 +943,7 @@ static int gswip_vlan_add(struct gswip_priv *priv, str
+ 	/* Update the VLAN mapping entry and write it to the switch */
+ 	vlan_mapping.val[1] |= cpu_ports;
+ 	vlan_mapping.val[1] |= BIT(port);
+-	if (vlan_aware)
++	if (vlan_aware && bridge && !IS_ERR(bridge))
+ 		vlan_mapping.val[2] |= cpu_ports;
+ 	if (untagged)
+ 		vlan_mapping.val[2] &= ~BIT(port);
+@@ -908,8 +983,15 @@ static int gswip_vlan_remove(struct gswip_priv *priv,
+ 	}
+ 
+ 	if (idx == -1) {
++		const char *name = "(null)";
++
++		if (IS_ERR(bridge))
++			name = "(dsa-8021q)";
++		else if (bridge)
++			name = bridge->name;
++
+ 		dev_err(priv->dev, "Port %d cannot find VID %u of bridge %s\n",
+-			port, vid, bridge ? bridge->name : "(null)");
++			port, vid, name);
+ 		return -ENOENT;
+ 	}
+ 
+@@ -953,6 +1035,11 @@ static int gswip_port_bridge_join(struct dsa_switch *d
+ 	struct gswip_priv *priv = ds->priv;
+ 	int err;
+ 
++	if (gswip_tag_protocol(priv) == DSA_TAG_PROTO_8021Q) {
++		*tx_fwd_offload = false;
++		return 0;
++	}
++
+ 	/* Set up the VLAN for VLAN-unaware bridging for this port, and remove
+ 	 * it from the "single-port bridge" through which it was operating as
+ 	 * standalone.
+@@ -971,6 +1058,9 @@ static void gswip_port_bridge_leave(struct dsa_switch 
+ 	struct net_device *br = bridge.dev;
+ 	struct gswip_priv *priv = ds->priv;
+ 
++	if (gswip_tag_protocol(priv) == DSA_TAG_PROTO_8021Q)
++		return;
++
+ 	/* Add the port back to the "single-port bridge", and remove it from
+ 	 * the VLAN-unaware PVID created for this bridge.
+ 	 */
+@@ -984,17 +1074,23 @@ static int gswip_port_vlan_prepare(struct dsa_switch *
+ {
+ 	struct net_device *bridge = dsa_port_bridge_dev_get(dsa_to_port(ds, port));
+ 	struct gswip_priv *priv = ds->priv;
++	struct net_device *key = bridge;
++	bool is_8021q = gswip_tag_protocol(priv) == DSA_TAG_PROTO_8021Q;
+ 	unsigned int max_ports = priv->hw_info->max_ports;
+ 	int pos = max_ports;
+ 	int i, idx = -1;
+ 
+ 	/* We only support VLAN filtering on bridges */
+-	if (!dsa_is_cpu_port(ds, port) && !bridge)
++	if (!dsa_is_cpu_port(ds, port) && !bridge && !is_8021q)
+ 		return -EOPNOTSUPP;
+ 
++	/* DSA tag_8021q internal VLANs must not be tied to a Linux bridge. */
++	if (is_8021q && (vlan->flags & BRIDGE_VLAN_INFO_PVID))
++		key = GSWIP_VLAN_BRIDGE_DSA_8021Q;
++
+ 	/* Check if there is already a page for this VLAN */
+ 	for (i = max_ports; i < ARRAY_SIZE(priv->vlans); i++) {
+-		if (priv->vlans[i].bridge == bridge &&
++		if (priv->vlans[i].bridge == key &&
+ 		    priv->vlans[i].vid == vlan->vid) {
+ 			idx = i;
+ 			break;
+@@ -1030,6 +1126,7 @@ static int gswip_port_vlan_add(struct dsa_switch *ds, 
+ {
+ 	struct net_device *bridge = dsa_port_bridge_dev_get(dsa_to_port(ds, port));
+ 	struct gswip_priv *priv = ds->priv;
++	struct net_device *key = bridge;
+ 	bool untagged = vlan->flags & BRIDGE_VLAN_INFO_UNTAGGED;
+ 	bool pvid = vlan->flags & BRIDGE_VLAN_INFO_PVID;
+ 	int err;
+@@ -1037,6 +1134,13 @@ static int gswip_port_vlan_add(struct dsa_switch *ds, 
+ 	if (vlan->vid == GSWIP_VLAN_UNAWARE_PVID)
+ 		return 0;
+ 
++	if (gswip_tag_protocol(priv) == DSA_TAG_PROTO_8021Q &&
++	    priv->tag_8021q_pvid && pvid && !dsa_is_cpu_port(ds, port))
++		priv->tag_8021q_pvid[port] = vlan->vid;
++
++	if (gswip_tag_protocol(priv) == DSA_TAG_PROTO_8021Q && pvid)
++		key = GSWIP_VLAN_BRIDGE_DSA_8021Q;
++
+ 	err = gswip_port_vlan_prepare(ds, port, vlan, extack);
+ 	if (err)
+ 		return err;
+@@ -1049,7 +1153,7 @@ static int gswip_port_vlan_add(struct dsa_switch *ds, 
+ 	if (dsa_is_cpu_port(ds, port))
+ 		return 0;
+ 
+-	return gswip_vlan_add(priv, bridge, port, vlan->vid, untagged, pvid,
++	return gswip_vlan_add(priv, key, port, vlan->vid, untagged, pvid,
+ 			      true);
+ }
+ 
+@@ -1058,6 +1162,7 @@ static int gswip_port_vlan_del(struct dsa_switch *ds, 
+ {
+ 	struct net_device *bridge = dsa_port_bridge_dev_get(dsa_to_port(ds, port));
+ 	struct gswip_priv *priv = ds->priv;
++	struct net_device *key = bridge;
+ 
+ 	if (vlan->vid == GSWIP_VLAN_UNAWARE_PVID)
+ 		return 0;
+@@ -1070,7 +1175,11 @@ static int gswip_port_vlan_del(struct dsa_switch *ds, 
+ 	if (dsa_is_cpu_port(ds, port))
+ 		return 0;
+ 
+-	return gswip_vlan_remove(priv, bridge, port, vlan->vid);
++	if (gswip_tag_protocol(priv) == DSA_TAG_PROTO_8021Q &&
++	    (vlan->flags & BRIDGE_VLAN_INFO_PVID))
++		key = GSWIP_VLAN_BRIDGE_DSA_8021Q;
++
++	return gswip_vlan_remove(priv, key, port, vlan->vid);
+ }
+ 
+ static void gswip_port_fast_age(struct dsa_switch *ds, int port)
+@@ -1641,6 +1750,12 @@ int gswip_probe_common(struct gswip_priv *priv, u32 ve
+ 	priv->ds->ops = &gswip_switch_ops;
  	priv->ds->phylink_mac_ops = &gswip_phylink_mac_ops;
  	priv->ds->priv = priv;
- 
++
 +	priv->tag_8021q_pvid = devm_kcalloc(priv->dev, priv->hw_info->max_ports,
 +					    sizeof(*priv->tag_8021q_pvid),
 +					    GFP_KERNEL);
 +	if (!priv->tag_8021q_pvid)
 +		return -ENOMEM;
-+
+ 
  	/* The hardware has the 'major/minor' version bytes in the wrong order
  	 * preventing numerical comparisons. Construct a 16-bit unsigned integer
- 	 * having the REV field as most significant byte and the MOD field as
