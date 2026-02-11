@@ -35,3 +35,9 @@ git-src
 .cproject
 .ccache
 .vscode*
+CLAUDE.md
+/docker/
+/docs/
+/packages.txt
+/version
+/package/libs/openssl/patches/160-skip-test-engines-when-no-tests.patch
