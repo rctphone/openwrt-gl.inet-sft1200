@@ -95,7 +95,7 @@ Signed-off-by: Codex <codex@openai.com>
  #define MIB_DESC(_size, _offset, _name) {.size = _size, .offset = _offset, .name = _name}
  
  static const struct gswip_rmon_cnt_desc gswip_rmon_cnt[] = {
-@@ -523,6 +559,27 @@ static void gswip_port_commit_pvid(struct gswip_priv *
+@@ -523,6 +559,27 @@ static void gswip_port_commit_pvid(struc
  	if (!dsa_port_is_user(dp))
  		return;
  
@@ -123,7 +123,7 @@ Signed-off-by: Codex <codex@openai.com>
  	if (br) {
  		u16 pvid = GSWIP_VLAN_UNAWARE_PVID;
  
-@@ -549,6 +606,7 @@ static void gswip_port_commit_pvid(struct gswip_priv *
+@@ -549,6 +606,7 @@ static void gswip_port_commit_pvid(struc
  		idx = port + 1;
  	}
  
@@ -131,7 +131,7 @@ Signed-off-by: Codex <codex@openai.com>
  	vinr = idx ? GSWIP_PCE_VCTRL_VINR_ALL : GSWIP_PCE_VCTRL_VINR_TAGGED;
  	regmap_write_bits(priv->gswip, GSWIP_PCE_VCTRL(port),
  			  GSWIP_PCE_VCTRL_VINR,
-@@ -568,6 +626,10 @@ static int gswip_port_vlan_filtering(struct dsa_switch
+@@ -568,6 +626,10 @@ static int gswip_port_vlan_filtering(str
  {
  	struct gswip_priv *priv = ds->priv;
  
@@ -142,7 +142,7 @@ Signed-off-by: Codex <codex@openai.com>
  	if (vlan_filtering) {
  		/* Use tag based VLAN */
  		regmap_write_bits(priv->gswip, GSWIP_PCE_VCTRL(port),
-@@ -644,6 +706,7 @@ static int gswip_setup(struct dsa_switch *ds)
+@@ -644,6 +706,7 @@ static int gswip_setup(struct dsa_switch
  {
  	unsigned int cpu_ports = dsa_cpu_ports(ds);
  	struct gswip_priv *priv = ds->priv;
@@ -150,7 +150,7 @@ Signed-off-by: Codex <codex@openai.com>
  	struct dsa_port *cpu_dp;
  	int err, i;
  
-@@ -654,7 +717,8 @@ static int gswip_setup(struct dsa_switch *ds)
+@@ -654,7 +717,8 @@ static int gswip_setup(struct dsa_switch
  	/* disable port fetch/store dma on all ports */
  	for (i = 0; i < priv->hw_info->max_ports; i++) {
  		gswip_port_disable(ds, i);
@@ -160,13 +160,18 @@ Signed-off-by: Codex <codex@openai.com>
  	}
  
  	/* enable Switch */
-@@ -706,14 +770,25 @@ static int gswip_setup(struct dsa_switch *ds)
+@@ -706,14 +770,25 @@ static int gswip_setup(struct dsa_switch
  				   0, i);
  
  	dsa_switch_for_each_cpu_port(cpu_dp, ds) {
 -		/* enable special tag insertion on cpu port */
 -		regmap_set_bits(priv->gswip, GSWIP_FDMA_PCTRLp(cpu_dp->index),
 -				GSWIP_FDMA_PCTRL_STEN);
+-
+-		/* accept special tag in ingress direction */
+-		regmap_set_bits(priv->gswip,
+-				GSWIP_PCE_PCTRL_0p(cpu_dp->index),
+-				GSWIP_PCE_PCTRL_0_INGRESS);
 +		if (tag_proto == DSA_TAG_PROTO_8021Q) {
 +			/* Make sure the proprietary special-tag path is off. */
 +			regmap_clear_bits(priv->gswip,
@@ -180,11 +185,7 @@ Signed-off-by: Codex <codex@openai.com>
 +			regmap_set_bits(priv->gswip,
 +					GSWIP_FDMA_PCTRLp(cpu_dp->index),
 +					GSWIP_FDMA_PCTRL_STEN);
- 
--		/* accept special tag in ingress direction */
--		regmap_set_bits(priv->gswip,
--				GSWIP_PCE_PCTRL_0p(cpu_dp->index),
--				GSWIP_PCE_PCTRL_0_INGRESS);
++
 +			/* accept special tag in ingress direction */
 +			regmap_set_bits(priv->gswip,
 +					GSWIP_PCE_PCTRL_0p(cpu_dp->index),
@@ -193,7 +194,7 @@ Signed-off-by: Codex <codex@openai.com>
  	}
  
  	regmap_set_bits(priv->gswip, GSWIP_BM_QUEUE_GCTRL,
-@@ -752,7 +827,7 @@ static enum dsa_tag_protocol gswip_get_tag_protocol(st
+@@ -752,7 +827,7 @@ static enum dsa_tag_protocol gswip_get_t
  {
  	struct gswip_priv *priv = ds->priv;
  
@@ -202,7 +203,7 @@ Signed-off-by: Codex <codex@openai.com>
  }
  
  static int gswip_vlan_active_create(struct gswip_priv *priv,
-@@ -868,7 +943,7 @@ static int gswip_vlan_add(struct gswip_priv *priv, str
+@@ -868,7 +943,7 @@ static int gswip_vlan_add(struct gswip_p
  	/* Update the VLAN mapping entry and write it to the switch */
  	vlan_mapping.val[1] |= cpu_ports;
  	vlan_mapping.val[1] |= BIT(port);
@@ -211,7 +212,7 @@ Signed-off-by: Codex <codex@openai.com>
  		vlan_mapping.val[2] |= cpu_ports;
  	if (untagged)
  		vlan_mapping.val[2] &= ~BIT(port);
-@@ -908,8 +983,15 @@ static int gswip_vlan_remove(struct gswip_priv *priv,
+@@ -908,8 +983,15 @@ static int gswip_vlan_remove(struct gswi
  	}
  
  	if (idx == -1) {
@@ -228,7 +229,7 @@ Signed-off-by: Codex <codex@openai.com>
  		return -ENOENT;
  	}
  
-@@ -953,6 +1035,11 @@ static int gswip_port_bridge_join(struct dsa_switch *d
+@@ -953,6 +1035,11 @@ static int gswip_port_bridge_join(struct
  	struct gswip_priv *priv = ds->priv;
  	int err;
  
@@ -240,7 +241,7 @@ Signed-off-by: Codex <codex@openai.com>
  	/* Set up the VLAN for VLAN-unaware bridging for this port, and remove
  	 * it from the "single-port bridge" through which it was operating as
  	 * standalone.
-@@ -971,6 +1058,9 @@ static void gswip_port_bridge_leave(struct dsa_switch 
+@@ -971,6 +1058,9 @@ static void gswip_port_bridge_leave(stru
  	struct net_device *br = bridge.dev;
  	struct gswip_priv *priv = ds->priv;
  
@@ -250,7 +251,7 @@ Signed-off-by: Codex <codex@openai.com>
  	/* Add the port back to the "single-port bridge", and remove it from
  	 * the VLAN-unaware PVID created for this bridge.
  	 */
-@@ -984,17 +1074,23 @@ static int gswip_port_vlan_prepare(struct dsa_switch *
+@@ -984,17 +1074,23 @@ static int gswip_port_vlan_prepare(struc
  {
  	struct net_device *bridge = dsa_port_bridge_dev_get(dsa_to_port(ds, port));
  	struct gswip_priv *priv = ds->priv;
@@ -276,7 +277,7 @@ Signed-off-by: Codex <codex@openai.com>
  		    priv->vlans[i].vid == vlan->vid) {
  			idx = i;
  			break;
-@@ -1030,6 +1126,7 @@ static int gswip_port_vlan_add(struct dsa_switch *ds, 
+@@ -1030,6 +1126,7 @@ static int gswip_port_vlan_add(struct ds
  {
  	struct net_device *bridge = dsa_port_bridge_dev_get(dsa_to_port(ds, port));
  	struct gswip_priv *priv = ds->priv;
@@ -284,7 +285,7 @@ Signed-off-by: Codex <codex@openai.com>
  	bool untagged = vlan->flags & BRIDGE_VLAN_INFO_UNTAGGED;
  	bool pvid = vlan->flags & BRIDGE_VLAN_INFO_PVID;
  	int err;
-@@ -1037,6 +1134,13 @@ static int gswip_port_vlan_add(struct dsa_switch *ds, 
+@@ -1037,6 +1134,13 @@ static int gswip_port_vlan_add(struct ds
  	if (vlan->vid == GSWIP_VLAN_UNAWARE_PVID)
  		return 0;
  
@@ -298,7 +299,7 @@ Signed-off-by: Codex <codex@openai.com>
  	err = gswip_port_vlan_prepare(ds, port, vlan, extack);
  	if (err)
  		return err;
-@@ -1049,7 +1153,7 @@ static int gswip_port_vlan_add(struct dsa_switch *ds, 
+@@ -1049,7 +1153,7 @@ static int gswip_port_vlan_add(struct ds
  	if (dsa_is_cpu_port(ds, port))
  		return 0;
  
@@ -307,7 +308,7 @@ Signed-off-by: Codex <codex@openai.com>
  			      true);
  }
  
-@@ -1058,6 +1162,7 @@ static int gswip_port_vlan_del(struct dsa_switch *ds, 
+@@ -1058,6 +1162,7 @@ static int gswip_port_vlan_del(struct ds
  {
  	struct net_device *bridge = dsa_port_bridge_dev_get(dsa_to_port(ds, port));
  	struct gswip_priv *priv = ds->priv;
@@ -315,7 +316,7 @@ Signed-off-by: Codex <codex@openai.com>
  
  	if (vlan->vid == GSWIP_VLAN_UNAWARE_PVID)
  		return 0;
-@@ -1070,7 +1175,11 @@ static int gswip_port_vlan_del(struct dsa_switch *ds, 
+@@ -1070,7 +1175,11 @@ static int gswip_port_vlan_del(struct ds
  	if (dsa_is_cpu_port(ds, port))
  		return 0;
  
@@ -328,16 +329,16 @@ Signed-off-by: Codex <codex@openai.com>
  }
  
  static void gswip_port_fast_age(struct dsa_switch *ds, int port)
-@@ -1641,6 +1750,12 @@ int gswip_probe_common(struct gswip_priv *priv, u32 ve
- 	priv->ds->ops = &gswip_switch_ops;
+@@ -1642,6 +1751,12 @@ int gswip_probe_common(struct gswip_priv
  	priv->ds->phylink_mac_ops = &gswip_phylink_mac_ops;
  	priv->ds->priv = priv;
-+
+ 
 +	priv->tag_8021q_pvid = devm_kcalloc(priv->dev, priv->hw_info->max_ports,
 +					    sizeof(*priv->tag_8021q_pvid),
 +					    GFP_KERNEL);
 +	if (!priv->tag_8021q_pvid)
 +		return -ENOMEM;
- 
++
  	/* The hardware has the 'major/minor' version bytes in the wrong order
  	 * preventing numerical comparisons. Construct a 16-bit unsigned integer
+ 	 * having the REV field as most significant byte and the MOD field as
