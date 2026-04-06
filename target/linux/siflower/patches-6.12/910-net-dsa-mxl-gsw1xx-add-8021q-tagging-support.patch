@@ -1,3 +1,133 @@
+From: Ivan Semenov <ivan@ray.app>
+Date: Sun, 06 Apr 2026 00:00:00 +0000
+Subject: [PATCH] net: dsa: mxl-gsw1xx: add 802.1Q VLAN-based tagging support
+
+The GSW1xx native 8-byte special tag (0x88C3) is not compatible with
+Siflower sf-hnat hardware NAT offload, which requires standard 802.1Q
+VLAN tags for port identification. Add a DSA tag driver that uses the
+tag_8021q framework to encode source and destination port information
+in standard 802.1Q VLAN tags.
+
+The driver is activated when the device tree node contains the
+"dsa,tag-8021q" boolean property, allowing per-board selection between
+native and VLAN-based tagging.
+
+Signed-off-by: Ivan Semenov <ivan@ray.app>
+---
+ drivers/net/dsa/lantiq/lantiq_gswip.h       |  3 ++
+ drivers/net/dsa/lantiq/lantiq_gswip_common.c|  4 ++
+ drivers/net/dsa/lantiq/mxl-gsw1xx.c         | 24 +++++++++++
+ include/net/dsa.h                           |  3 ++
+ net/dsa/Kconfig                             |  7 ++++
+ net/dsa/Makefile                            |  1 +
+ net/dsa/tag_mxl_gsw1xx_8021q.c              | 55 ++++++++++++++++++++++++
+ 7 files changed, 97 insertions(+)
+ create mode 100644 net/dsa/tag_mxl_gsw1xx_8021q.c
+
+--- a/include/net/dsa.h
++++ b/include/net/dsa.h
+@@ -59,6 +59,7 @@
+ #define DSA_TAG_PROTO_VSC73XX_8021Q_VALUE	28
+ #define DSA_TAG_PROTO_BRCM_LEGACY_FCS_VALUE	29
+ #define DSA_TAG_PROTO_MXL_GSW1XX_VALUE		31
++#define DSA_TAG_PROTO_MXL_GSW1XX_8021Q_VALUE	32
+
+ enum dsa_tag_protocol {
+ 	DSA_TAG_PROTO_NONE		= DSA_TAG_PROTO_NONE_VALUE,
+@@ -68,6 +69,8 @@ enum dsa_tag_protocol {
+ 	DSA_TAG_PROTO_VSC73XX_8021Q	= DSA_TAG_PROTO_VSC73XX_8021Q_VALUE,
+ 	DSA_TAG_PROTO_MXL_GSW1XX	= DSA_TAG_PROTO_MXL_GSW1XX_VALUE,
++	DSA_TAG_PROTO_MXL_GSW1XX_8021Q	= DSA_TAG_PROTO_MXL_GSW1XX_8021Q_VALUE,
+ };
+
+ struct dsa_switch;
+--- a/net/dsa/Kconfig
++++ b/net/dsa/Kconfig
+@@ -215,4 +215,11 @@ config NET_DSA_TAG_MXL_GSW1XX
+ 	  Say Y or M if you want to enable support for tagging frames for
+ 	  MaxLinear GSW1xx family of switches.
+
++config NET_DSA_TAG_MXL_GSW1XX_8021Q
++	tristate "Tag driver for MaxLinear GSW1xx switches, using 802.1Q VLAN"
++	select NET_DSA_TAG_8021Q
++	help
++	  Say Y or M if you want to enable 802.1Q VLAN-based tagging for
++	  MaxLinear GSW1xx switches (required for hardware NAT offload).
++
+ endif
+--- a/net/dsa/Makefile
++++ b/net/dsa/Makefile
+@@ -28,3 +28,4 @@ obj-$(CONFIG_NET_DSA_TAG_TRAILER) += tag
+ obj-$(CONFIG_NET_DSA_TAG_VSC73XX) += tag_vsc73xx.o
+ obj-$(CONFIG_NET_DSA_TAG_VSC73XX_8021Q) += tag_vsc73xx_8021q.o
+ obj-$(CONFIG_NET_DSA_TAG_MXL_GSW1XX) += tag_mxl-gsw1xx.o
++obj-$(CONFIG_NET_DSA_TAG_MXL_GSW1XX_8021Q) += tag_mxl_gsw1xx_8021q.o
+--- /dev/null
++++ b/net/dsa/tag_mxl_gsw1xx_8021q.c
+@@ -0,0 +1,55 @@
++// SPDX-License-Identifier: GPL-2.0-or-later
++/*
++ * DSA 802.1Q VLAN-based tag driver for MaxLinear GSW1xx switches
++ *
++ * Uses the DSA tag_8021q framework to encode port information in
++ * standard 802.1Q VLAN tags instead of the native 8-byte GSW1xx
++ * special tag. This is required for compatibility with hardware
++ * NAT offload engines (e.g. Siflower sf-hnat) that expect standard
++ * VLAN-tagged frames.
++ *
++ * Copyright (C) 2026 Ivan Semenov <ivan@ray.app>
++ * Based on tag_mxl862xx_8021q.c by Daniel Golle
++ */
++
++#include <linux/dsa/8021q.h>
++
++#include "tag.h"
++#include "tag_8021q.h"
++
++#define GSW1XX_8021Q_NAME	"gsw1xx-8021q"
++
++static struct sk_buff *gsw1xx_8021q_xmit(struct sk_buff *skb,
++					 struct net_device *netdev)
++{
++	struct dsa_port *dp = dsa_user_to_port(netdev);
++	u16 tx_vid = dsa_tag_8021q_standalone_vid(dp);
++	u16 queue_mapping = skb_get_queue_mapping(skb);
++	u8 pcp = netdev_txq_to_tc(netdev, queue_mapping);
++
++	return dsa_8021q_xmit(skb, netdev, ETH_P_8021Q,
++			      (pcp << VLAN_PRIO_SHIFT) | tx_vid);
++}
++
++static struct sk_buff *gsw1xx_8021q_rcv(struct sk_buff *skb,
++					struct net_device *netdev)
++{
++	int src_port = -1, switch_id = -1;
++
++	dsa_8021q_rcv(skb, &src_port, &switch_id, NULL, NULL);
++
++	skb->dev = dsa_conduit_find_user(netdev, switch_id, src_port);
++	if (!skb->dev)
++		return NULL;
++
++	dsa_default_offload_fwd_mark(skb);
++
++	return skb;
++}
++
++static const struct dsa_device_ops gsw1xx_8021q_netdev_ops = {
++	.name			= GSW1XX_8021Q_NAME,
++	.proto			= DSA_TAG_PROTO_MXL_GSW1XX_8021Q,
++	.xmit			= gsw1xx_8021q_xmit,
++	.rcv			= gsw1xx_8021q_rcv,
++	.needed_headroom	= VLAN_HLEN,
++	.promisc_on_conduit	= true,
++};
++
++MODULE_DESCRIPTION("DSA tag driver for MaxLinear GSW1xx switches, using VLAN");
++MODULE_LICENSE("GPL");
++MODULE_ALIAS_DSA_TAG_DRIVER(DSA_TAG_PROTO_MXL_GSW1XX_8021Q, GSW1XX_8021Q_NAME);
++
++module_dsa_tag_driver(gsw1xx_8021q_netdev_ops);
 --- a/drivers/net/dsa/lantiq/lantiq_gswip.h
 +++ b/drivers/net/dsa/lantiq/lantiq_gswip.h
 @@ -259,6 +259,9 @@ struct gswip_hw_info {
@@ -8,21 +138,21 @@
 +	enum dsa_tag_protocol (*get_tag_protocol)(struct dsa_switch *ds,
 +						  int port);
  };
- 
+
  struct gswip_gphy_fw {
 --- a/drivers/net/dsa/lantiq/lantiq_gswip_common.c
 +++ b/drivers/net/dsa/lantiq/lantiq_gswip_common.c
 @@ -827,6 +827,10 @@ static enum dsa_tag_protocol gswip_get_t
  {
  	struct gswip_priv *priv = ds->priv;
- 
+
 +	/* Allow hw_info to override tag protocol (for HNAT) */
 +	if (priv->hw_info->get_tag_protocol)
 +		return priv->hw_info->get_tag_protocol(ds, port);
 +
  	return gswip_tag_protocol(priv);
  }
- 
+
 --- a/drivers/net/dsa/lantiq/mxl-gsw1xx.c
 +++ b/drivers/net/dsa/lantiq/mxl-gsw1xx.c
 @@ -34,6 +34,7 @@ struct gsw1xx_priv {
@@ -31,13 +161,12 @@
  	struct gswip_priv	gswip;
 +	bool			use_8021q_tag;
  };
- 
+
  static int gsw1xx_config_smdio_badr(struct gsw1xx_priv *priv,
-@@ -611,6 +612,17 @@ static int gsw1xx_port_setup(struct dsa_
+@@ -611,6 +612,16 @@ static int gsw1xx_port_setup(struct dsa_
  				     "maxlinear,slew-rate-txd", RGMII_SLEW_CFG_DRV_TXD);
  }
- 
-+
+
 +static enum dsa_tag_protocol gsw1xx_get_tag_protocol(struct dsa_switch *ds,
 +						     int port)
 +{
@@ -45,26 +174,26 @@
 +	struct gsw1xx_priv *priv = container_of(gswip, struct gsw1xx_priv, gswip);
 +
 +	if (priv->use_8021q_tag)
-+		return DSA_TAG_PROTO_NONE;
++		return DSA_TAG_PROTO_MXL_GSW1XX_8021Q;
 +	return DSA_TAG_PROTO_MXL_GSW1XX;
 +}
  static struct regmap *gsw1xx_regmap_init(struct gsw1xx_priv *priv,
  					 const char *name,
  					 unsigned int reg_base,
-@@ -714,6 +726,12 @@ static int gsw1xx_probe(struct mdio_devi
- 
+@@ -714,6 +725,12 @@ static int gsw1xx_probe(struct mdio_devi
+
  	INIT_DELAYED_WORK(&priv->clear_raneg, gsw1xx_pcs_clear_raneg);
- 
-+
+
 +	/* Check if 802.1Q tagging is requested (for HNAT) */
 +	if (of_property_read_bool(dev->of_node, "dsa,tag-8021q")) {
 +		priv->use_8021q_tag = true;
 +		dev_info(&mdiodev->dev, "Using VLAN-based DSA tagging for HNAT\n");
 +	}
++
  	ret = gswip_probe_common(&priv->gswip, version);
  	if (ret)
  		return ret;
-@@ -770,6 +788,7 @@ static const struct gswip_hw_info gsw12x
+@@ -770,6 +787,7 @@ static const struct gswip_hw_info gsw12x
  	.phylink_get_caps	= &gsw1xx_phylink_get_caps,
  	.supports_2500m		= true,
  	.port_setup		= gsw1xx_port_setup,
@@ -72,7 +201,7 @@
  	.pce_microcode		= &gsw1xx_pce_microcode,
  	.pce_microcode_size	= ARRAY_SIZE(gsw1xx_pce_microcode),
  	.tag_protocol		= DSA_TAG_PROTO_MXL_GSW1XX,
-@@ -792,6 +811,7 @@ static const struct gswip_hw_info gsw140
+@@ -792,6 +810,7 @@ static const struct gswip_hw_info gsw140
  	.phylink_get_caps	= &gsw1xx_phylink_get_caps,
  	.supports_2500m		= true,
  	.port_setup		= gsw1xx_port_setup,
@@ -80,7 +209,7 @@
  	.pce_microcode		= &gsw1xx_pce_microcode,
  	.pce_microcode_size	= ARRAY_SIZE(gsw1xx_pce_microcode),
  	.tag_protocol		= DSA_TAG_PROTO_MXL_GSW1XX,
-@@ -813,6 +833,7 @@ static const struct gswip_hw_info gsw141
+@@ -813,6 +832,7 @@ static const struct gswip_hw_info gsw141
  	.mac_select_pcs		= gsw1xx_phylink_mac_select_pcs,
  	.phylink_get_caps	= gsw1xx_phylink_get_caps,
  	.port_setup		= gsw1xx_port_setup,
