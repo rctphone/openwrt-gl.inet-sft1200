@@ -22,44 +22,47 @@ Signed-off-by: Paolo Abeni <pabeni@redhat.com>
 
 --- a/include/net/dsa.h
 +++ b/include/net/dsa.h
-@@ -55,6 +55,7 @@ struct tc_action;
- #define DSA_TAG_PROTO_LAN937X_VALUE		27
+@@ -56,7 +56,8 @@ struct tc_action;
  #define DSA_TAG_PROTO_VSC73XX_8021Q_VALUE	28
  #define DSA_TAG_PROTO_BRCM_LEGACY_FCS_VALUE	29
+ #define DSA_TAG_PROTO_MXL_GSW1XX_VALUE		31
 +#define DSA_TAG_PROTO_MXL862_VALUE		30
  
  enum dsa_tag_protocol {
  	DSA_TAG_PROTO_NONE		= DSA_TAG_PROTO_NONE_VALUE,
-@@ -87,6 +88,7 @@ enum dsa_tag_protocol {
+@@ -88,6 +89,7 @@ enum dsa_tag_protocol {
  	DSA_TAG_PROTO_RZN1_A5PSW	= DSA_TAG_PROTO_RZN1_A5PSW_VALUE,
  	DSA_TAG_PROTO_LAN937X		= DSA_TAG_PROTO_LAN937X_VALUE,
  	DSA_TAG_PROTO_VSC73XX_8021Q	= DSA_TAG_PROTO_VSC73XX_8021Q_VALUE,
 +	DSA_TAG_PROTO_MXL862		= DSA_TAG_PROTO_MXL862_VALUE,
+ 	DSA_TAG_PROTO_MXL_GSW1XX	= DSA_TAG_PROTO_MXL_GSW1XX_VALUE,
  };
  
  struct dsa_switch;
 --- a/net/dsa/Kconfig
 +++ b/net/dsa/Kconfig
-@@ -104,6 +104,13 @@ config NET_DSA_TAG_MTK
+@@ -111,6 +111,13 @@ config NET_DSA_TAG_MXL_GSW1XX
+ 	  can be used on the CPU port of the switch.
  	  Say Y or M if you want to enable support for tagging frames for
- 	  Mediatek switches.
- 
+ 	  MaxLinear GSW1xx switches.
++
 +config NET_DSA_TAG_MXL_862XX
 +	tristate "Tag driver for MaxLinear MxL862xx switches"
 +	help
 +	  Say Y or M if you want to enable support for tagging frames for the
 +	  MaxLinear MxL86252 and MxL86282 switches using their native 8-byte
 +	  tagging protocol.
-+
+ 
  config NET_DSA_TAG_KSZ
  	tristate "Tag driver for Microchip 8795/937x/9477/9893 families of switches"
  	help
 --- a/net/dsa/Makefile
 +++ b/net/dsa/Makefile
-@@ -28,6 +28,7 @@ obj-$(CONFIG_NET_DSA_TAG_HELLCREEK) += t
+@@ -29,6 +29,7 @@ obj-$(CONFIG_NET_DSA_TAG_KSZ) += tag_ksz
  obj-$(CONFIG_NET_DSA_TAG_KSZ) += tag_ksz.o
  obj-$(CONFIG_NET_DSA_TAG_LAN9303) += tag_lan9303.o
  obj-$(CONFIG_NET_DSA_TAG_MTK) += tag_mtk.o
+ obj-$(CONFIG_NET_DSA_TAG_MXL_GSW1XX) += tag_mxl-gsw1xx.o
 +obj-$(CONFIG_NET_DSA_TAG_MXL_862XX) += tag_mxl862xx.o
  obj-$(CONFIG_NET_DSA_TAG_NONE) += tag_none.o
  obj-$(CONFIG_NET_DSA_TAG_OCELOT) += tag_ocelot.o
@@ -177,15 +180,3 @@ Signed-off-by: Paolo Abeni <pabeni@redhat.com>
 +MODULE_LICENSE("GPL");
 +
 +module_dsa_tag_driver(mxl862_netdev_ops);
---- a/include/uapi/linux/if_ether.h
-+++ b/include/uapi/linux/if_ether.h
-@@ -92,6 +92,9 @@
- #define ETH_P_ETHERCAT	0x88A4		/* EtherCAT			*/
- #define ETH_P_8021AD	0x88A8          /* 802.1ad Service VLAN		*/
- #define ETH_P_802_EX1	0x88B5		/* 802.1 Local Experimental 1.  */
-+#define ETH_P_MXLGSW	0x88C3		/* Infineon Technologies Corporate Research ST
-+					 * Used by MaxLinear GSW DSA
-+					 */
- #define ETH_P_PREAUTH	0x88C7		/* 802.11 Preauthentication */
- #define ETH_P_TIPC	0x88CA		/* TIPC 			*/
- #define ETH_P_LLDP	0x88CC		/* Link Layer Discovery Protocol */
