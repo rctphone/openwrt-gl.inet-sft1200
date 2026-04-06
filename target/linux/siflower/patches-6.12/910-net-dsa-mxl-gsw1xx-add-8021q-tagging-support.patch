@@ -14,9 +14,9 @@ native and VLAN-based tagging.
 
 Signed-off-by: Ivan Semenov <ivan@ray.app>
 ---
- drivers/net/dsa/lantiq/lantiq_gswip.h       |  3 ++
- drivers/net/dsa/lantiq/lantiq_gswip_common.c|  4 ++
- drivers/net/dsa/lantiq/mxl-gsw1xx.c         | 24 +++++++++++
+ drivers/net/dsa/lantiq/lantiq_gswip.h       | 16 +++++++
+ drivers/net/dsa/lantiq/lantiq_gswip_common.c| 87 +++++++++++++++++++++++++++++++++++-
+ drivers/net/dsa/lantiq/mxl-gsw1xx.c         | 98 +++++++++++++++++++++++++++++++++++++++-
  include/net/dsa.h                           |  3 ++
  net/dsa/Kconfig                             |  7 ++++
  net/dsa/Makefile                            |  1 +
@@ -130,57 +130,329 @@ Signed-off-by: Ivan Semenov <ivan@ray.app>
 +module_dsa_tag_driver(gsw1xx_8021q_netdev_ops);
 --- a/drivers/net/dsa/lantiq/lantiq_gswip.h
 +++ b/drivers/net/dsa/lantiq/lantiq_gswip.h
-@@ -259,6 +259,9 @@ struct gswip_hw_info {
+@@ -259,6 +259,15 @@ struct gswip_hw_info {
  	struct phylink_pcs *(*mac_select_pcs)(struct phylink_config *config,
  					      phy_interface_t interface);
  	int (*port_setup)(struct dsa_switch *ds, int port);
 +	/* Optional: override tag protocol (for HNAT compatibility) */
 +	enum dsa_tag_protocol (*get_tag_protocol)(struct dsa_switch *ds,
 +						  int port);
++	int (*change_tag_protocol)(struct dsa_switch *ds,
++				   enum dsa_tag_protocol proto);
++	int (*tag_8021q_vlan_add)(struct dsa_switch *ds, int port,
++				  u16 vid, u16 flags);
++	int (*tag_8021q_vlan_del)(struct dsa_switch *ds, int port, u16 vid);
++	void (*teardown)(struct dsa_switch *ds);
  };
-
+ 
  struct gswip_gphy_fw {
+@@ -278,4 +287,11 @@ struct gswip_priv {
+ 	u16 version;
+ };
+ 
++int gswip_add_tag_8021q_vlan(struct dsa_switch *ds, int port, u16 vid,
++			     u16 fid, unsigned int *index);
++
++int gswip_del_tag_8021q_vlan(struct dsa_switch *ds, unsigned int index);
++
+ void gswip_disable_switch(struct gswip_priv *priv);
+ 
+ int gswip_probe_common(struct gswip_priv *priv, u32 version);
 --- a/drivers/net/dsa/lantiq/lantiq_gswip_common.c
 +++ b/drivers/net/dsa/lantiq/lantiq_gswip_common.c
-@@ -827,6 +827,10 @@ static enum dsa_tag_protocol gswip_get_t
+@@ -756,6 +756,9 @@ static void gswip_teardown(struct dsa_switch *ds)
  {
  	struct gswip_priv *priv = ds->priv;
-
+ 
++	if (priv->hw_info->teardown)
++		priv->hw_info->teardown(ds);
++
+ 	regmap_clear_bits(priv->mdio, GSWIP_MDIO_GLOB, GSWIP_MDIO_GLOB_ENABLE);
+ }
+ 
+@@ -827,6 +830,38 @@ static enum dsa_tag_protocol gswip_get_t
+ {
+ 	struct gswip_priv *priv = ds->priv;
+ 
 +	/* Allow hw_info to override tag protocol (for HNAT) */
 +	if (priv->hw_info->get_tag_protocol)
 +		return priv->hw_info->get_tag_protocol(ds, port);
 +
  	return gswip_tag_protocol(priv);
  }
-
++
++static int gswip_change_tag_protocol(struct dsa_switch *ds,
++				     enum dsa_tag_protocol proto)
++{
++	struct gswip_priv *priv = ds->priv;
++
++	if (priv->hw_info->change_tag_protocol)
++		return priv->hw_info->change_tag_protocol(ds, proto);
++
++	return proto == gswip_tag_protocol(priv) ? 0 : -EPROTONOSUPPORT;
++}
++
++static int gswip_tag_8021q_vlan_add(struct dsa_switch *ds, int port,
++				    u16 vid, u16 flags)
++{
++	struct gswip_priv *priv = ds->priv;
++
++	if (priv->hw_info->tag_8021q_vlan_add)
++		return priv->hw_info->tag_8021q_vlan_add(ds, port, vid, flags);
++
++	return 0;
++}
++
++static int gswip_tag_8021q_vlan_del(struct dsa_switch *ds, int port, u16 vid)
++{
++	struct gswip_priv *priv = ds->priv;
++
++	if (priv->hw_info->tag_8021q_vlan_del)
++		return priv->hw_info->tag_8021q_vlan_del(ds, port, vid);
++
++	return 0;
++}
++
++#define GSWIP_TAG_8021Q_VLAN ERR_PTR(-ENOENT)
++
+@@ -894,6 +929,56 @@ static int gswip_vlan_remove(struct gswip_priv *priv,
+ 
+ 	return 0;
+ }
++
++int gswip_add_tag_8021q_vlan(struct dsa_switch *ds, int port, u16 vid,
++			     u16 fid, unsigned int *index)
++{
++	struct gswip_priv *priv = ds->priv;
++	struct gswip_pce_table_entry vlan_mapping = {0,}, vlan_active = {0,};
++	unsigned int max_ports = priv->hw_info->max_ports;
++	unsigned int cpu_ports = dsa_cpu_ports(ds);
++	int idx = -1, err, i;
++
++	for (i = max_ports; i < ARRAY_SIZE(priv->vlans); i++) {
++		if (!priv->vlans[i].bridge) {
++			idx = i;
++			break;
++		}
++	}
++
++	if (idx == -1)
++		return -ENOSPC;
++
++	vlan_active.index = idx;
++	vlan_active.table = GSWIP_TABLE_ACTIVE_VLAN;
++	vlan_active.key[0] = vid;
++	vlan_active.val[0] = fid;
++	vlan_active.valid = true;
++	err = gswip_pce_table_entry_write(priv, &vlan_active);
++	if (err)
++		return err;
++
++	vlan_mapping.index = idx;
++	vlan_mapping.table = GSWIP_TABLE_VLAN_MAPPING;
++	vlan_mapping.val[0] = vid;
++	vlan_mapping.val[1] = cpu_ports | BIT(port);
++	vlan_mapping.val[2] = cpu_ports;
++	err = gswip_pce_table_entry_write(priv, &vlan_mapping);
++	if (err) {
++		gswip_vlan_active_remove(priv, idx);
++		return err;
++	}
++
++	priv->vlans[idx].bridge = GSWIP_TAG_8021Q_VLAN;
++	priv->vlans[idx].vid = vid;
++	priv->vlans[idx].fid = fid;
++	*index = idx;
++
++	return 0;
++}
++EXPORT_SYMBOL_GPL(gswip_add_tag_8021q_vlan);
++
++int gswip_del_tag_8021q_vlan(struct dsa_switch *ds, unsigned int index)
++{
++	struct gswip_priv *priv = ds->priv;
++	struct gswip_pce_table_entry vlan_mapping = {0,};
++
++	vlan_mapping.index = index;
++	vlan_mapping.table = GSWIP_TABLE_VLAN_MAPPING;
++	vlan_mapping.valid = false;
++	gswip_pce_table_entry_write(priv, &vlan_mapping);
++
++	return gswip_vlan_active_remove(priv, index);
++}
++EXPORT_SYMBOL_GPL(gswip_del_tag_8021q_vlan);
++
+@@ -1591,12 +1676,15 @@ static const struct phylink_mac_ops gswip_phylink_mac_ops = {
+ 
+ static const struct dsa_switch_ops gswip_switch_ops = {
+ 	.get_tag_protocol	= gswip_get_tag_protocol,
++	.change_tag_protocol	= gswip_change_tag_protocol,
+ 	.setup			= gswip_setup,
+ 	.teardown		= gswip_teardown,
+ 	.port_setup		= gswip_port_setup,
+ 	.port_enable		= gswip_port_enable,
+ 	.port_disable		= gswip_port_disable,
++	.tag_8021q_vlan_add	= gswip_tag_8021q_vlan_add,
++	.tag_8021q_vlan_del	= gswip_tag_8021q_vlan_del,
+ 	.port_bridge_join	= gswip_port_bridge_join,
+ 	.port_bridge_leave	= gswip_port_bridge_leave,
+ 	.port_fast_age		= gswip_port_fast_age,
+ 
 --- a/drivers/net/dsa/lantiq/mxl-gsw1xx.c
 +++ b/drivers/net/dsa/lantiq/mxl-gsw1xx.c
-@@ -34,6 +34,7 @@ struct gsw1xx_priv {
+@@ -8,6 +8,7 @@
+ #include <linux/bits.h>
++#include <linux/dsa/8021q.h>
+ #include <linux/delay.h>
+ #include <linux/module.h>
+ #include <linux/of_device.h>
+@@ -34,6 +35,10 @@ struct gsw1xx_priv {
  	struct delayed_work	clear_raneg;
  	phy_interface_t		tbi_interface;
  	struct gswip_priv	gswip;
 +	bool			use_8021q_tag;
++	enum dsa_tag_protocol	tag_proto;
++	u16			tag_8021q_vid[DSA_MAX_PORTS];
++	int			tag_8021q_vlan_index[DSA_MAX_PORTS];
  };
 
  static int gsw1xx_config_smdio_badr(struct gsw1xx_priv *priv,
-@@ -611,6 +612,16 @@ static int gsw1xx_port_setup(struct dsa_
+@@ -611,6 +616,100 @@ static int gsw1xx_port_setup(struct dsa_
  				     "maxlinear,slew-rate-txd", RGMII_SLEW_CFG_DRV_TXD);
  }
-
+ 
 +static enum dsa_tag_protocol gsw1xx_get_tag_protocol(struct dsa_switch *ds,
 +						     int port)
 +{
 +	struct gswip_priv *gswip = ds->priv;
 +	struct gsw1xx_priv *priv = container_of(gswip, struct gsw1xx_priv, gswip);
 +
-+	if (priv->use_8021q_tag)
-+		return DSA_TAG_PROTO_MXL_GSW1XX_8021Q;
-+	return DSA_TAG_PROTO_MXL_GSW1XX;
++	return priv->tag_proto;
++}
++
++static void gsw1xx_teardown_tag_8021q(struct dsa_switch *ds)
++{
++	struct gsw1xx_priv *priv = container_of(ds->priv, struct gsw1xx_priv,
++						 gswip);
++	struct dsa_port *dp;
++	int ret;
++
++	dsa_switch_for_each_user_port(dp, ds) {
++		if (priv->tag_8021q_vlan_index[dp->index] < 0)
++			continue;
++
++		ret = gswip_del_tag_8021q_vlan(ds,
++					       priv->tag_8021q_vlan_index[dp->index]);
++		if (ret)
++			dev_err(ds->dev,
++				"failed to remove tag_8021q VLAN on port %d: %d\n",
++				dp->index, ret);
++
++		priv->tag_8021q_vlan_index[dp->index] = -1;
++		priv->tag_8021q_vid[dp->index] = 0;
++	}
++}
++
++static int gsw1xx_change_tag_protocol(struct dsa_switch *ds,
++				      enum dsa_tag_protocol proto)
++{
++	struct gsw1xx_priv *priv = container_of(ds->priv, struct gsw1xx_priv,
++						 gswip);
++	enum dsa_tag_protocol old_proto = priv->tag_proto;
++	int ret;
++
++	if (proto == old_proto)
++		return 0;
++
++	priv->tag_proto = proto;
++
++	switch (proto) {
++	case DSA_TAG_PROTO_MXL_GSW1XX:
++		if (ds->tag_8021q_ctx)
++			dsa_tag_8021q_unregister(ds);
++
++		gsw1xx_teardown_tag_8021q(ds);
++		return 0;
++
++	case DSA_TAG_PROTO_MXL_GSW1XX_8021Q:
++		ret = dsa_tag_8021q_register(ds, htons(ETH_P_8021Q));
++		if (ret) {
++			gsw1xx_teardown_tag_8021q(ds);
++			priv->tag_proto = old_proto;
++		}
++
++		return ret;
++
++	default:
++		priv->tag_proto = old_proto;
++		return -EPROTONOSUPPORT;
++	}
++}
++
++static int gsw1xx_tag_8021q_vlan_add(struct dsa_switch *ds, int port,
++				     u16 vid, u16 flags)
++{
++	struct gsw1xx_priv *priv = container_of(ds->priv, struct gsw1xx_priv,
++						 gswip);
++	unsigned int index;
++	int ret;
++
++	if (dsa_is_cpu_port(ds, port) ||
++	    priv->tag_proto != DSA_TAG_PROTO_MXL_GSW1XX_8021Q)
++		return 0;
++
++	if (priv->tag_8021q_vlan_index[port] >= 0 &&
++	    priv->tag_8021q_vid[port] == vid)
++		return 0;
++
++	if (priv->tag_8021q_vlan_index[port] >= 0) {
++		ret = gswip_del_tag_8021q_vlan(ds, priv->tag_8021q_vlan_index[port]);
++		if (ret)
++			return ret;
++	}
++
++	ret = gswip_add_tag_8021q_vlan(ds, port, vid, port + 1, &index);
++	if (ret)
++		return ret;
++
++	priv->tag_8021q_vid[port] = vid;
++	priv->tag_8021q_vlan_index[port] = index;
++
++	return 0;
++}
++
++static int gsw1xx_tag_8021q_vlan_del(struct dsa_switch *ds, int port, u16 vid)
++{
++	struct gsw1xx_priv *priv = container_of(ds->priv, struct gsw1xx_priv,
++						 gswip);
++
++	if (dsa_is_cpu_port(ds, port) || priv->tag_8021q_vlan_index[port] < 0)
++		return 0;
++
++	if (!vid || priv->tag_8021q_vid[port] == vid) {
++		int ret = gswip_del_tag_8021q_vlan(ds,
++						   priv->tag_8021q_vlan_index[port]);
++		if (ret)
++			return ret;
++
++		priv->tag_8021q_vlan_index[port] = -1;
++		priv->tag_8021q_vid[port] = 0;
++	}
++
++	return 0;
++}
++
++static void gsw1xx_teardown(struct dsa_switch *ds)
++{
++	if (ds->tag_8021q_ctx)
++		dsa_tag_8021q_unregister(ds);
++
++	gsw1xx_teardown_tag_8021q(ds);
 +}
  static struct regmap *gsw1xx_regmap_init(struct gsw1xx_priv *priv,
  					 const char *name,
  					 unsigned int reg_base,
-@@ -714,6 +725,12 @@ static int gsw1xx_probe(struct mdio_devi
+@@ -714,6 +815,18 @@ static int gsw1xx_probe(struct mdio_devi
 
  	INIT_DELAYED_WORK(&priv->clear_raneg, gsw1xx_pcs_clear_raneg);
 
@@ -190,30 +462,49 @@ Signed-off-by: Ivan Semenov <ivan@ray.app>
 +		dev_info(&mdiodev->dev, "Using VLAN-based DSA tagging for HNAT\n");
 +	}
 +
++	priv->tag_proto = priv->use_8021q_tag ?
++		DSA_TAG_PROTO_MXL_GSW1XX_8021Q :
++		DSA_TAG_PROTO_MXL_GSW1XX;
++
++	for (int i = 0; i < ARRAY_SIZE(priv->tag_8021q_vlan_index); i++)
++		priv->tag_8021q_vlan_index[i] = -1;
++
  	ret = gswip_probe_common(&priv->gswip, version);
  	if (ret)
  		return ret;
-@@ -770,6 +787,7 @@ static const struct gswip_hw_info gsw12x
+@@ -770,6 +883,11 @@ static const struct gswip_hw_info gsw12x
  	.phylink_get_caps	= &gsw1xx_phylink_get_caps,
  	.supports_2500m		= true,
  	.port_setup		= gsw1xx_port_setup,
 +	.get_tag_protocol	= gsw1xx_get_tag_protocol,
++	.change_tag_protocol	= gsw1xx_change_tag_protocol,
++	.tag_8021q_vlan_add	= gsw1xx_tag_8021q_vlan_add,
++	.tag_8021q_vlan_del	= gsw1xx_tag_8021q_vlan_del,
++	.teardown		= gsw1xx_teardown,
  	.pce_microcode		= &gsw1xx_pce_microcode,
  	.pce_microcode_size	= ARRAY_SIZE(gsw1xx_pce_microcode),
  	.tag_protocol		= DSA_TAG_PROTO_MXL_GSW1XX,
-@@ -792,6 +810,7 @@ static const struct gswip_hw_info gsw140
+@@ -792,6 +910,11 @@ static const struct gswip_hw_info gsw140
  	.phylink_get_caps	= &gsw1xx_phylink_get_caps,
  	.supports_2500m		= true,
  	.port_setup		= gsw1xx_port_setup,
 +	.get_tag_protocol	= gsw1xx_get_tag_protocol,
++	.change_tag_protocol	= gsw1xx_change_tag_protocol,
++	.tag_8021q_vlan_add	= gsw1xx_tag_8021q_vlan_add,
++	.tag_8021q_vlan_del	= gsw1xx_tag_8021q_vlan_del,
++	.teardown		= gsw1xx_teardown,
  	.pce_microcode		= &gsw1xx_pce_microcode,
  	.pce_microcode_size	= ARRAY_SIZE(gsw1xx_pce_microcode),
  	.tag_protocol		= DSA_TAG_PROTO_MXL_GSW1XX,
-@@ -813,6 +832,7 @@ static const struct gswip_hw_info gsw141
+@@ -813,6 +936,11 @@ static const struct gswip_hw_info gsw141
  	.mac_select_pcs		= gsw1xx_phylink_mac_select_pcs,
  	.phylink_get_caps	= gsw1xx_phylink_get_caps,
  	.port_setup		= gsw1xx_port_setup,
 +	.get_tag_protocol	= gsw1xx_get_tag_protocol,
++	.change_tag_protocol	= gsw1xx_change_tag_protocol,
++	.tag_8021q_vlan_add	= gsw1xx_tag_8021q_vlan_add,
++	.tag_8021q_vlan_del	= gsw1xx_tag_8021q_vlan_del,
++	.teardown		= gsw1xx_teardown,
  	.pce_microcode		= &gsw1xx_pce_microcode,
  	.pce_microcode_size	= ARRAY_SIZE(gsw1xx_pce_microcode),
  	.tag_protocol		= DSA_TAG_PROTO_MXL_GSW1XX,

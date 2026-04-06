@@ -832,12 +832,14 @@ define KernelPackage/dsa-mxl-gsw1xx
   KCONFIG:= \
 	CONFIG_NET_DSA_MXL_GSW1XX \
 	CONFIG_NET_DSA_TAG_MXL_GSW1XX \
+	CONFIG_NET_DSA_TAG_MXL_GSW1XX_8021Q \
 	CONFIG_NET_DSA_TAG_8021Q
   FILES:= \
 	$(LINUX_DIR)/net/dsa/tag_mxl-gsw1xx.ko \
+	$(LINUX_DIR)/net/dsa/tag_mxl_gsw1xx_8021q.ko \
 	$(LINUX_DIR)/net/dsa/tag_8021q.ko \
 	$(LINUX_DIR)/drivers/net/dsa/lantiq/mxl-gsw1xx.ko
-  AUTOLOAD:=$(call AutoLoad,41,tag_mxl-gsw1xx tag_8021q mxl-gsw1xx,1)
+  AUTOLOAD:=$(call AutoLoad,41,tag_mxl-gsw1xx tag_mxl_gsw1xx_8021q tag_8021q mxl-gsw1xx,1)
 endef
 
 define KernelPackage/dsa-mxl-gsw1xx/description
