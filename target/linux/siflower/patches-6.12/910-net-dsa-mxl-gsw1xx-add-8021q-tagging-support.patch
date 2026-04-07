@@ -31,7 +31,7 @@ Signed-off-by: Ivan Semenov <ivan@ray.app>
  #define DSA_TAG_PROTO_MXL_GSW1XX_VALUE		31
  #define DSA_TAG_PROTO_MXL862_8021Q_VALUE	32
 +#define DSA_TAG_PROTO_MXL_GSW1XX_8021Q_VALUE	33
-
+ 
  enum dsa_tag_protocol {
  	DSA_TAG_PROTO_NONE		= DSA_TAG_PROTO_NONE_VALUE,
 @@ -70,7 +71,8 @@ enum dsa_tag_protocol {
@@ -41,14 +41,14 @@ Signed-off-by: Ivan Semenov <ivan@ray.app>
  	DSA_TAG_PROTO_MXL862_8021Q	= DSA_TAG_PROTO_MXL862_8021Q_VALUE,
 +	DSA_TAG_PROTO_MXL_GSW1XX_8021Q	= DSA_TAG_PROTO_MXL_GSW1XX_8021Q_VALUE,
  };
-
+ 
  struct dsa_switch;
 --- a/net/dsa/Kconfig
 +++ b/net/dsa/Kconfig
 @@ -215,4 +215,11 @@ config NET_DSA_TAG_MXL_GSW1XX
  	  Say Y or M if you want to enable support for tagging frames for
  	  MaxLinear GSW1xx family of switches.
-
+ 
 +config NET_DSA_TAG_MXL_GSW1XX_8021Q
 +	tristate "Tag driver for MaxLinear GSW1xx switches, using 802.1Q VLAN"
 +	select NET_DSA_TAG_8021Q
@@ -59,14 +59,17 @@ Signed-off-by: Ivan Semenov <ivan@ray.app>
  endif
 --- a/net/dsa/Makefile
 +++ b/net/dsa/Makefile
-@@ -28,3 +28,4 @@ obj-$(CONFIG_NET_DSA_TAG_TRAILER) += tag
- obj-$(CONFIG_NET_DSA_TAG_VSC73XX) += tag_vsc73xx.o
- obj-$(CONFIG_NET_DSA_TAG_VSC73XX_8021Q) += tag_vsc73xx_8021q.o
+@@ -29,6 +29,7 @@ obj-$(CONFIG_NET_DSA_TAG_KSZ) += tag_ksz
+ obj-$(CONFIG_NET_DSA_TAG_LAN9303) += tag_lan9303.o
+ obj-$(CONFIG_NET_DSA_TAG_MTK) += tag_mtk.o
  obj-$(CONFIG_NET_DSA_TAG_MXL_GSW1XX) += tag_mxl-gsw1xx.o
+ obj-$(CONFIG_NET_DSA_TAG_MXL_862XX) += tag_mxl862xx.o
+ obj-$(CONFIG_NET_DSA_TAG_MXL_862XX_8021Q) += tag_mxl862xx_8021q.o
 +obj-$(CONFIG_NET_DSA_TAG_MXL_GSW1XX_8021Q) += tag_mxl_gsw1xx_8021q.o
+ obj-$(CONFIG_NET_DSA_TAG_NONE) += tag_none.o
 --- /dev/null
 +++ b/net/dsa/tag_mxl_gsw1xx_8021q.c
-@@ -0,0 +1,55 @@
+@@ -0,0 +1,63 @@
 +// SPDX-License-Identifier: GPL-2.0-or-later
 +/*
 + * DSA 802.1Q VLAN-based tag driver for MaxLinear GSW1xx switches
@@ -148,7 +151,7 @@ Signed-off-by: Ivan Semenov <ivan@ray.app>
  };
  
  struct gswip_gphy_fw {
-@@ -278,4 +287,11 @@ struct gswip_priv {
+@@ -278,6 +287,11 @@ struct gswip_priv {
  	u16 version;
  };
  
@@ -172,7 +175,7 @@ Signed-off-by: Ivan Semenov <ivan@ray.app>
  	regmap_clear_bits(priv->mdio, GSWIP_MDIO_GLOB, GSWIP_MDIO_GLOB_ENABLE);
  }
  
-@@ -827,6 +830,38 @@ static enum dsa_tag_protocol gswip_get_t
+@@ -827,5 +830,44 @@ static enum dsa_tag_protocol gswip_get_t
  {
  	struct gswip_priv *priv = ds->priv;
  
@@ -217,7 +220,7 @@ Signed-off-by: Ivan Semenov <ivan@ray.app>
 +
 +#define GSWIP_TAG_8021Q_VLAN ERR_PTR(-ENOENT)
 +
-@@ -894,6 +929,56 @@ static int gswip_vlan_remove(struct gswip_priv *priv,
+@@ -894,3 +929,66 @@ static int gswip_vlan_remove(struct gswip_priv *priv,
  
  	return 0;
  }
@@ -302,7 +305,7 @@ Signed-off-by: Ivan Semenov <ivan@ray.app>
  
 --- a/drivers/net/dsa/lantiq/mxl-gsw1xx.c
 +++ b/drivers/net/dsa/lantiq/mxl-gsw1xx.c
-@@ -8,6 +8,7 @@
+@@ -8,4 +8,5 @@
  #include <linux/bits.h>
 +#include <linux/dsa/8021q.h>
  #include <linux/delay.h>
@@ -317,9 +320,9 @@ Signed-off-by: Ivan Semenov <ivan@ray.app>
 +	u16			tag_8021q_vid[DSA_MAX_PORTS];
 +	int			tag_8021q_vlan_index[DSA_MAX_PORTS];
  };
-
+ 
  static int gsw1xx_config_smdio_badr(struct gsw1xx_priv *priv,
-@@ -611,6 +616,100 @@ static int gsw1xx_port_setup(struct dsa_
+@@ -611,6 +616,134 @@ static int gsw1xx_port_setup(struct dsa_
  				     "maxlinear,slew-rate-txd", RGMII_SLEW_CFG_DRV_TXD);
  }
  
@@ -454,10 +457,10 @@ Signed-off-by: Ivan Semenov <ivan@ray.app>
  static struct regmap *gsw1xx_regmap_init(struct gsw1xx_priv *priv,
  					 const char *name,
  					 unsigned int reg_base,
-@@ -714,6 +815,18 @@ static int gsw1xx_probe(struct mdio_devi
-
+@@ -714,6 +815,19 @@ static int gsw1xx_probe(struct mdio_devi
+ 
  	INIT_DELAYED_WORK(&priv->clear_raneg, gsw1xx_pcs_clear_raneg);
-
+ 
 +	/* Check if 802.1Q tagging is requested (for HNAT) */
 +	if (of_property_read_bool(dev->of_node, "dsa,tag-8021q")) {
 +		priv->use_8021q_tag = true;

@@ -61,8 +61,9 @@ Signed-off-by: Paolo Abeni <pabeni@redhat.com>
  source "drivers/net/dsa/qca/Kconfig"
 --- a/drivers/net/dsa/Makefile
 +++ b/drivers/net/dsa/Makefile
-@@ -21,6 +21,7 @@ obj-y				+= b53/
+@@ -18,7 +18,8 @@ obj-y				+= b53/
  obj-y				+= hirschmann/
+ obj-y				+= lantiq/
  obj-y				+= microchip/
  obj-y				+= mv88e6xxx/
 +obj-y				+= mxl862xx/
