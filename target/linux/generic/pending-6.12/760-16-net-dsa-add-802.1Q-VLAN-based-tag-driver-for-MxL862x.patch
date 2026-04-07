@@ -2327,8 +2327,8 @@ Signed-off-by: Daniel Golle <daniel@makrotopia.org>
 @@ -57,7 +57,8 @@ struct tc_action;
  #define DSA_TAG_PROTO_VSC73XX_8021Q_VALUE	28
  #define DSA_TAG_PROTO_BRCM_LEGACY_FCS_VALUE	29
- #define DSA_TAG_PROTO_MXL862_VALUE		30
  #define DSA_TAG_PROTO_MXL_GSW1XX_VALUE		31
+ #define DSA_TAG_PROTO_MXL862_VALUE		30
 +#define DSA_TAG_PROTO_MXL862_8021Q_VALUE	32
  
  enum dsa_tag_protocol {
