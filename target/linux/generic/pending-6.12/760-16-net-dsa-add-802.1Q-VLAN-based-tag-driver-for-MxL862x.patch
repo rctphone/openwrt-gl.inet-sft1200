@@ -2325,6 +2325,7 @@ Signed-off-by: Daniel Golle <daniel@makrotopia.org>
 --- a/include/net/dsa.h
 +++ b/include/net/dsa.h
 @@ -57,7 +57,8 @@ struct tc_action;
+ #define DSA_TAG_PROTO_VSC73XX_8021Q_VALUE	28
  #define DSA_TAG_PROTO_BRCM_LEGACY_FCS_VALUE	29
  #define DSA_TAG_PROTO_MXL862_VALUE		30
  #define DSA_TAG_PROTO_MXL_GSW1XX_VALUE		31
@@ -2332,7 +2333,8 @@ Signed-off-by: Daniel Golle <daniel@makrotopia.org>
  
  enum dsa_tag_protocol {
  	DSA_TAG_PROTO_NONE		= DSA_TAG_PROTO_NONE_VALUE,
-@@ -90,7 +91,8 @@ enum dsa_tag_protocol {
+@@ -90,8 +91,9 @@ enum dsa_tag_protocol {
+ 	DSA_TAG_PROTO_RZN1_A5PSW	= DSA_TAG_PROTO_RZN1_A5PSW_VALUE,
  	DSA_TAG_PROTO_LAN937X		= DSA_TAG_PROTO_LAN937X_VALUE,
  	DSA_TAG_PROTO_VSC73XX_8021Q	= DSA_TAG_PROTO_VSC73XX_8021Q_VALUE,
  	DSA_TAG_PROTO_MXL862		= DSA_TAG_PROTO_MXL862_VALUE,
