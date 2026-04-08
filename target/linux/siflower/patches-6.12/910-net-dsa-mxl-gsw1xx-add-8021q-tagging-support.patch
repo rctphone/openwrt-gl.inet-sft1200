@@ -151,8 +151,13 @@ Signed-off-by: Ivan Semenov <ivan@ray.app>
  };
  
  struct gswip_gphy_fw {
-@@ -278,6 +287,11 @@ struct gswip_priv {
+@@ -288,9 +297,14 @@ struct gswip_priv {
+ 	struct gswip_gphy_fw *gphy_fw;
+ 	struct mutex pce_table_lock;
  	u16 version;
+ 
+ 	/* Per-port PVID used by DSA tag_8021q (VID value, 0 if unset). */
+ 	u16 *tag_8021q_pvid;
  };
  
 +int gswip_add_tag_8021q_vlan(struct dsa_switch *ds, int port, u16 vid,
@@ -160,8 +165,6 @@ Signed-off-by: Ivan Semenov <ivan@ray.app>
 +
 +int gswip_del_tag_8021q_vlan(struct dsa_switch *ds, unsigned int index);
 +
- void gswip_disable_switch(struct gswip_priv *priv);
- 
  int gswip_probe_common(struct gswip_priv *priv, u32 version);
 --- a/drivers/net/dsa/lantiq/lantiq_gswip_common.c
 +++ b/drivers/net/dsa/lantiq/lantiq_gswip_common.c
@@ -175,7 +178,9 @@ Signed-off-by: Ivan Semenov <ivan@ray.app>
  	regmap_clear_bits(priv->mdio, GSWIP_MDIO_GLOB, GSWIP_MDIO_GLOB_ENABLE);
  }
  
-@@ -827,5 +830,44 @@ static enum dsa_tag_protocol gswip_get_t
+@@ -827,7 +830,46 @@ static enum dsa_tag_protocol gswip_get_tag_protocol(struct dsa_switch *ds,
+ 						    int port,
+ 						    enum dsa_tag_protocol mp)
  {
  	struct gswip_priv *priv = ds->priv;
  
@@ -220,7 +225,7 @@ Signed-off-by: Ivan Semenov <ivan@ray.app>
 +
 +#define GSWIP_TAG_8021Q_VLAN ERR_PTR(-ENOENT)
 +
-@@ -894,3 +929,66 @@ static int gswip_vlan_remove(struct gswip_priv *priv,
+@@ -983,3 +1025,66 @@ static int gswip_vlan_remove(struct gswip_priv *priv,
  
  	return 0;
  }
@@ -287,7 +292,7 @@ Signed-off-by: Ivan Semenov <ivan@ray.app>
 +}
 +EXPORT_SYMBOL_GPL(gswip_del_tag_8021q_vlan);
 +
-@@ -1591,12 +1676,15 @@ static const struct phylink_mac_ops gswip_phylink_mac_ops = {
+@@ -1591,12 +1695,15 @@ static const struct phylink_mac_ops gswip_phylink_mac_ops = {
  
  static const struct dsa_switch_ops gswip_switch_ops = {
  	.get_tag_protocol	= gswip_get_tag_protocol,
