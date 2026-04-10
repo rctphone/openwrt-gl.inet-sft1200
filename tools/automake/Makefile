@@ -26,7 +26,7 @@ HOST_CONFIGURE_VARS += \
 define Host/Configure
 	(cd $(HOST_BUILD_DIR); \
 		$(AM_TOOL_PATHS) \
-		STAGING_DIR_HOST="$(STAGING_DIR_HOST)" \
+		STAGING_DIR_HOST="" \
 		autom4te_perllibdir="$(STAGING_DIR_HOST)/share/autoconf" \
 		AC_MACRODIR="$(STAGING_DIR_HOST)/share/autoconf" \
 		PERL5LIB="$(STAGING_DIR_HOST)/share/autoconf" \
