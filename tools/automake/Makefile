@@ -26,10 +26,12 @@ HOST_CONFIGURE_VARS += \
 define Host/Configure
 	(cd $(HOST_BUILD_DIR); \
 		$(AM_TOOL_PATHS) \
-		STAGING_DIR_HOST="" \
+		STAGING_DIR_HOST="$(STAGING_DIR_HOST)" \
+		AUTOMAKE_UNINSTALLED=1 \
+		AUTOMAKE_LIBDIR="$(HOST_BUILD_DIR)/automake-$(PKG_API_VERSION)" \
 		autom4te_perllibdir="$(STAGING_DIR_HOST)/share/autoconf" \
 		AC_MACRODIR="$(STAGING_DIR_HOST)/share/autoconf" \
-		PERL5LIB="$(STAGING_DIR_HOST)/share/autoconf" \
+		PERL5LIB="$(HOST_BUILD_DIR)/automake-$(PKG_API_VERSION):$(STAGING_DIR_HOST)/share/autoconf" \
 		./bootstrap)
 	$(call Host/Configure/Default)
 endef
