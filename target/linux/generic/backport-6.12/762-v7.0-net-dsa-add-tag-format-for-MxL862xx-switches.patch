@@ -27,7 +27,7 @@ Signed-off-by: Paolo Abeni <pabeni@redhat.com>
  #define DSA_TAG_PROTO_BRCM_LEGACY_FCS_VALUE	29
  #define DSA_TAG_PROTO_MXL_GSW1XX_VALUE		31
 +#define DSA_TAG_PROTO_MXL862_VALUE		30
-
+ 
  enum dsa_tag_protocol {
  	DSA_TAG_PROTO_NONE		= DSA_TAG_PROTO_NONE_VALUE,
 @@ -88,6 +89,7 @@ enum dsa_tag_protocol {
@@ -37,29 +37,26 @@ Signed-off-by: Paolo Abeni <pabeni@redhat.com>
 +	DSA_TAG_PROTO_MXL862		= DSA_TAG_PROTO_MXL862_VALUE,
  	DSA_TAG_PROTO_MXL_GSW1XX	= DSA_TAG_PROTO_MXL_GSW1XX_VALUE,
  };
-
- struct dsa_switch;
+ 
 --- a/net/dsa/Kconfig
 +++ b/net/dsa/Kconfig
-@@ -111,6 +111,13 @@ config NET_DSA_TAG_MXL_GSW1XX
- 	  can be used on the CPU port of the switch.
+@@ -112,6 +112,13 @@ config NET_DSA_TAG_MXL_GSW1XX
  	  Say Y or M if you want to enable support for tagging frames for
  	  MaxLinear GSW1xx switches.
-+
+ 
 +config NET_DSA_TAG_MXL_862XX
 +	tristate "Tag driver for MaxLinear MxL862xx switches"
 +	help
 +	  Say Y or M if you want to enable support for tagging frames for the
 +	  MaxLinear MxL86252 and MxL86282 switches using their native 8-byte
 +	  tagging protocol.
- 
++
  config NET_DSA_TAG_KSZ
  	tristate "Tag driver for Microchip 8795/937x/9477/9893 families of switches"
  	help
 --- a/net/dsa/Makefile
 +++ b/net/dsa/Makefile
 @@ -29,6 +29,7 @@ obj-$(CONFIG_NET_DSA_TAG_KSZ) += tag_ksz
- obj-$(CONFIG_NET_DSA_TAG_KSZ) += tag_ksz.o
  obj-$(CONFIG_NET_DSA_TAG_LAN9303) += tag_lan9303.o
  obj-$(CONFIG_NET_DSA_TAG_MTK) += tag_mtk.o
  obj-$(CONFIG_NET_DSA_TAG_MXL_GSW1XX) += tag_mxl-gsw1xx.o
