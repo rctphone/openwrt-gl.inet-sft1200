@@ -10,6 +10,7 @@ PKG_NAME:=automake
 PKG_CPE_ID:=cpe:/a:gnu:automake
 PKG_VERSION:=1.18.1
 PKG_API_VERSION:=$(word 2,$(subst ., ,$(PKG_VERSION)))
+PKG_API_SERIES:=$(word 1,$(subst ., ,$(PKG_VERSION))).$(word 2,$(subst ., ,$(PKG_VERSION)))
 
 PKG_SOURCE:=$(PKG_NAME)-$(PKG_VERSION).tar.gz
 PKG_SOURCE_URL:=@GNU/automake
@@ -28,10 +29,10 @@ define Host/Configure
 		$(AM_TOOL_PATHS) \
 		STAGING_DIR_HOST="$(STAGING_DIR_HOST)" \
 		AUTOMAKE_UNINSTALLED=1 \
-		AUTOMAKE_LIBDIR="$(HOST_BUILD_DIR)/automake-$(PKG_API_VERSION)" \
+		AUTOMAKE_LIBDIR="$(HOST_BUILD_DIR)/automake-$(PKG_API_SERIES)" \
 		autom4te_perllibdir="$(STAGING_DIR_HOST)/share/autoconf" \
 		AC_MACRODIR="$(STAGING_DIR_HOST)/share/autoconf" \
-		PERL5LIB="$(HOST_BUILD_DIR)/automake-$(PKG_API_VERSION):$(STAGING_DIR_HOST)/share/autoconf" \
+		PERL5LIB="$(HOST_BUILD_DIR)/automake-$(PKG_API_SERIES):$(STAGING_DIR_HOST)/share/autoconf" \
 		./bootstrap)
 	$(call Host/Configure/Default)
 endef
