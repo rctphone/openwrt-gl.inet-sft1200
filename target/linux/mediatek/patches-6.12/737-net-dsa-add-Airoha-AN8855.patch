@@ -213,7 +213,7 @@ Christian Marangi (9):
 +
  source "drivers/net/dsa/hirschmann/Kconfig"
  
- config NET_DSA_LANTIQ_GSWIP
+ source "drivers/net/dsa/lantiq/Kconfig"
 --- a/drivers/net/dsa/Makefile
 +++ b/drivers/net/dsa/Makefile
 @@ -6,6 +6,7 @@ ifdef CONFIG_NET_DSA_LOOP
