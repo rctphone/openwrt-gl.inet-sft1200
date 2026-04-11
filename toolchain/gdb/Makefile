@@ -50,6 +50,12 @@ HOST_CONFIGURE_ARGS = \
 	--disable-gas \
 	--disable-sim
 
+define Host/FixStagingHostLibtoolArchives
+	[ ! -d $(STAGING_DIR_HOST)/lib ] || find $(STAGING_DIR_HOST)/lib -name '*.la' -exec \
+		$(SED) "s|/[^ ]*/staging_dir/host|$(STAGING_DIR_HOST)|g" {} +
+endef
+Hooks/HostConfigure/Pre += Host/FixStagingHostLibtoolArchives
+
 ifneq ($(CONFIG_GDB_PYTHON),)
   HOST_CONFIGURE_ARGS+= --with-python
 else

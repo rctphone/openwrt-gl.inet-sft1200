@@ -221,9 +221,9 @@ Christian Marangi (9):
  endif
  obj-$(CONFIG_NET_DSA_KS8995) 	+= ks8995.o
 +obj-$(CONFIG_NET_DSA_AN8855)	+= an8855.o
- obj-$(CONFIG_NET_DSA_LANTIQ_GSWIP) += lantiq_gswip.o
  obj-$(CONFIG_NET_DSA_MT7530)	+= mt7530.o
  obj-$(CONFIG_NET_DSA_MT7530_MDIO) += mt7530-mdio.o
+ obj-$(CONFIG_NET_DSA_MT7530_MMIO) += mt7530-mmio.o
 --- a/drivers/net/mdio/Kconfig
 +++ b/drivers/net/mdio/Kconfig
 @@ -61,6 +61,15 @@ config MDIO_XGENE
