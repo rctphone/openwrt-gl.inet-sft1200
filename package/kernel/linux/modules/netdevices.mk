@@ -816,7 +816,7 @@ $(eval $(call KernelPackage,dsa-ksz9477-spi))
 define KernelPackage/dsa-lantiq-gswip-common
   SUBMENU:=$(NETWORK_DEVICES_MENU)
   TITLE:=Lantiq/Intel/MaxLinear GSWIP library
-  DEPENDS:=+kmod-dsa
+  DEPENDS:=+kmod-dsa +kmod-regmap-core
   KCONFIG:=CONFIG_NET_DSA_LANTIQ_COMMON
   HIDDEN:=1
   FILES:=$(LINUX_DIR)/drivers/net/dsa/lantiq/lantiq_gswip_common.ko
@@ -832,14 +832,12 @@ define KernelPackage/dsa-mxl-gsw1xx
   KCONFIG:= \
 	CONFIG_NET_DSA_MXL_GSW1XX \
 	CONFIG_NET_DSA_TAG_MXL_GSW1XX \
-	$(if $(CONFIG_TARGET_siflower),CONFIG_NET_DSA_TAG_MXL_GSW1XX_8021Q) \
-	$(if $(CONFIG_TARGET_siflower),CONFIG_NET_DSA_TAG_8021Q)
+	$(if $(CONFIG_TARGET_siflower),CONFIG_NET_DSA_TAG_MXL_GSW1XX_8021Q)
   FILES:= \
 	$(LINUX_DIR)/net/dsa/tag_mxl-gsw1xx.ko \
 	$(if $(CONFIG_TARGET_siflower),$(LINUX_DIR)/net/dsa/tag_mxl_gsw1xx_8021q.ko) \
-	$(if $(CONFIG_TARGET_siflower),$(LINUX_DIR)/net/dsa/tag_8021q.ko) \
 	$(LINUX_DIR)/drivers/net/dsa/lantiq/mxl-gsw1xx.ko
-  AUTOLOAD:=$(call AutoLoad,41,tag_mxl-gsw1xx$(if $(CONFIG_TARGET_siflower), tag_mxl_gsw1xx_8021q tag_8021q) mxl-gsw1xx,1)
+  AUTOLOAD:=$(call AutoLoad,41,tag_mxl-gsw1xx$(if $(CONFIG_TARGET_siflower), tag_mxl_gsw1xx_8021q) mxl-gsw1xx,1)
 endef
 
 define KernelPackage/dsa-mxl-gsw1xx/description

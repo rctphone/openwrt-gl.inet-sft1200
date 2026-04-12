@@ -44,13 +44,12 @@ Signed-off-by: Ivan Semenov <ivan@ray.app>
  struct dsa_switch;
 --- a/net/dsa/Kconfig
 +++ b/net/dsa/Kconfig
-@@ -212,4 +212,11 @@ config NET_DSA_TAG_XRS700X
+@@ -212,4 +212,10 @@ config NET_DSA_TAG_XRS700X
  	  Say Y or M if you want to enable support for tagging frames for
  	  Arrow SpeedChips XRS700x switches that use a single byte tag trailer.
  
 +config NET_DSA_TAG_MXL_GSW1XX_8021Q
 +	tristate "Tag driver for MaxLinear GSW1xx switches, using 802.1Q VLAN"
-+	select NET_DSA_TAG_8021Q
 +	help
 +	  Say Y or M if you want to enable 802.1Q VLAN-based tagging for
 +	  MaxLinear GSW1xx switches (required for hardware NAT offload).
