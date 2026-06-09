@@ -19,6 +19,7 @@ ipq40xx_setup_interfaces()
 	linksys,ea8300|\
 	linksys,mr6350|\
 	linksys,mr8300|\
+	linksys,mr9000|\
 	mikrotik,hap-ac2|\
 	mikrotik,hap-ac3|\
 	mikrotik,hap-ac3-lte6-kit|\
@@ -108,7 +109,8 @@ ipq40xx_setup_interfaces()
 		ucidef_set_interfaces_lan_wan "lan1 lan2" "wan"
 		;;
 	meraki,gx20|\
-	meraki,z3)
+	meraki,z3|\
+	meraki,z3c)
 		ucidef_set_interfaces_lan_wan "lan2 lan3 lan4 lan5" "wan"
 		;;
 	meraki,mr30h)
