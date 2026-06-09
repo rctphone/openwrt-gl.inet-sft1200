@@ -41,3 +41,5 @@ CLAUDE.md
 /packages.txt
 /version
 /package/libs/openssl/patches/160-skip-test-engines-when-no-tests.patch
+/build.sh
+/feeds.conf.default
