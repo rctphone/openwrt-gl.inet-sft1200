@@ -3,12 +3,12 @@ Date: Wed, 29 Jan 2025 00:00:00 +0000
 Subject: [PATCH] sf_wifi: Adapt for Linux 6.12 kernel
 
 Make the Siflower WiFi driver compatible with Linux 6.12 kernel:
-- Fix MY_LINUX_VERSION_CODE to use actual kernel version
-- Update compatibility layer for newer kernel APIs
+- MY_LINUX_VERSION_CODE comes from NOSTDINC_FLAGS (package Makefile)
+- platform_driver .remove callbacks return void since 6.12
 
 --- a/sf_smac/src/bb_src/umac/umac_config.mk
 +++ b/sf_smac/src/bb_src/umac/umac_config.mk
-@@ -88,8 +88,6 @@
+@@ -88,9 +88,7 @@
  
  # this is because we port the mac80211/cfg80211 from include/generated/uapi/linux/version.h
  # KERNEL_VERSION(6,6,51): 394803
@@ -18,10 +18,10 @@ Make the Siflower WiFi driver compatible with Linux 6.12 kernel:
 +# MY_LINUX_VERSION_CODE is now set via NOSTDINC_FLAGS in package Makefile
  
  CONFIG_SIWIFI_ACS = n
+ subdir-ccflags-$(CONFIG_SIWIFI_ACS) += -DCONFIG_SIWIFI_ACS
 --- a/sf_smac/src/rf/rf_entry.c
 +++ b/sf_smac/src/rf/rf_entry.c
 @@ -1347,7 +1347,7 @@
- error_release_resources:
      sf_wifi_rf_os_resources_free(pdev, priv);
      return ret;
  }
@@ -29,16 +29,18 @@ Make the Siflower WiFi driver compatible with Linux 6.12 kernel:
 +void sf_wifi_rf_remove(struct platform_device *pdev)
  {
      struct rf_pl_context *priv;
-@@ -1363,6 +1363,5 @@
-     sf_wifi_rf_irqs_unregister(pdev, priv);
+     printk("%s\n", __func__);
+@@ -1363,7 +1363,6 @@
      reset_control_assert(priv->rstc);
      clk_bulk_disable_unprepare(priv->num_clks, priv->clks);
      sf_wifi_rf_os_resources_free(pdev, priv);
 -    return 0;
  }
+ static const struct of_device_id sf_wifi_rf_of_match[] = {
+     {
 --- a/sf_smac/src/bb_src/umac/siwifi_mpw0.c
 +++ b/sf_smac/src/bb_src/umac/siwifi_mpw0.c
-@@ -1433,6 +1433,6 @@
+@@ -1433,7 +1433,7 @@
      siwifi_platform_deinit(siwifi_plat);
      return ret;
  }
@@ -46,9 +48,12 @@ Make the Siflower WiFi driver compatible with Linux 6.12 kernel:
 +static void siwifi_hp_remove(struct platform_device *pdev)
  {
      struct siwifi_hw *siwifi_hw;
-@@ -1449,5 +1449,4 @@
+     struct siwifi_plat *siwifi_plat;
+@@ -1448,7 +1448,6 @@
      siwifi_cfg80211_deinit(siwifi_hw);
      siwifi_platform_deinit(siwifi_plat);
      platform_set_drvdata(pdev, NULL);
 -    return 0;
  }
+ static const char sf_wifi_module_name[16] = {
+     "fmac"
