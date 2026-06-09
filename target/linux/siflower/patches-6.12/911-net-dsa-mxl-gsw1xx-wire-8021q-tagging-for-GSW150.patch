@@ -1,0 +1,26 @@
+From: Ivan Semenov <ivan@ray.app>
+Subject: [PATCH] net: dsa: mxl-gsw1xx: wire 802.1Q tagging ops for GSW150
+
+The 8021q tagging support (910) wires the tag_8021q hw_info hooks for
+the GSW12x, GSW140 and GSW141 variants but not for the Intel GSW150
+added later. The GL.iNet GL-SFT1200 carries a GSW150, so without these
+hooks the dsa,tag-8021q DT property is silently ignored on that board.
+
+Signed-off-by: Ivan Semenov <ivan@ray.app>
+---
+ drivers/net/dsa/lantiq/mxl-gsw1xx.c | 5 +++++
+ 1 file changed, 5 insertions(+)
+
+--- a/drivers/net/dsa/lantiq/mxl-gsw1xx.c
++++ b/drivers/net/dsa/lantiq/mxl-gsw1xx.c
+@@ -940,5 +940,10 @@ static const struct gswip_hw_info gsw150
+ 	},
+ 	.phylink_get_caps	= gsw150_phylink_get_caps,
++	.get_tag_protocol	= gsw1xx_get_tag_protocol,
++	.change_tag_protocol	= gsw1xx_change_tag_protocol,
++	.tag_8021q_vlan_add	= gsw1xx_tag_8021q_vlan_add,
++	.tag_8021q_vlan_del	= gsw1xx_tag_8021q_vlan_del,
++	.teardown		= gsw1xx_teardown,
+ 	.pce_microcode		= &gsw1xx_pce_microcode,
+ 	.pce_microcode_size	= ARRAY_SIZE(gsw1xx_pce_microcode),
+ 	.tag_protocol		= DSA_TAG_PROTO_MXL_GSW1XX,

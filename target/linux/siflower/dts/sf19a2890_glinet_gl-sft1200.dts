@@ -188,16 +188,15 @@
 };
 
 &mdio {
-	reset-gpios = <&gpio 0 GPIO_ACTIVE_LOW>;
-	reset-delay-us = <10000>;
-	reset-post-delay-us = <100000>;
-	clock-frequency = <12500000>;
-
-	switch: switch@1f {
-		reg = <0x1f>;
+	/*
+	 * Switch sits at SMDIO address 0 and probes as Intel GSW150
+	 * ("standalone switch part number 0x30 v1.2" on real hardware,
+	 * confirmed by ulli-kroll's boot log on GL-SFT1200).
+	 */
+	switch: switch@0 {
+		reg = <0x00>;
 		dsa,member = <0 0>;
-		compatible = "maxlinear,gsw140";
-		maxlinear,tag-protocol = "8021q";
+		compatible = "intel,gsw150";
 
 		/*
 		 * Use 802.1Q VLAN tagging instead of proprietary DSA tag.
