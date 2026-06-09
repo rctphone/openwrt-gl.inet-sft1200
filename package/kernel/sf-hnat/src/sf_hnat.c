@@ -658,6 +658,83 @@ int sf_hnat_setup_tc_block(struct net_device *dev,
 EXPORT_SYMBOL(sf_hnat_setup_tc_block);
 
 /*
+ * Indirect flow block registration
+ *
+ * The stmmac driver does not implement ndo_setup_tc(TC_SETUP_FT), so the
+ * nf_flow_table hardware offload path falls back to the indirect flow
+ * block API. Registering here lets nftables flowtables with
+ * 'flags offload' (fw4: flow_offloading_hw) bind to the DSA user ports
+ * without any changes to the ethernet driver.
+ */
+static LIST_HEAD(sf_hnat_indr_block_cb_list);
+
+static void sf_hnat_indr_block_release(void *cb_priv)
+{
+}
+
+static int sf_hnat_indr_setup_block(struct net_device *netdev,
+				    struct Qdisc *sch, void *cb_priv,
+				    struct flow_block_offload *f, void *data,
+				    void (*cleanup)(struct flow_block_cb *block_cb))
+{
+	struct flow_block_cb *block_cb;
+
+	/* The HNAT engine sits in the GMAC; only flows traversing the
+	 * DSA user ports (wan/lan*) can be accelerated.
+	 */
+	if (!netdev || !dsa_user_dev_check(netdev))
+		return -EOPNOTSUPP;
+
+	if (f->binder_type != FLOW_BLOCK_BINDER_TYPE_CLSACT_INGRESS)
+		return -EOPNOTSUPP;
+
+	f->driver_block_list = &sf_hnat_indr_block_cb_list;
+
+	switch (f->command) {
+	case FLOW_BLOCK_BIND:
+		block_cb = flow_indr_block_cb_alloc(sf_hnat_setup_tc_block_cb,
+						    netdev, cb_priv,
+						    sf_hnat_indr_block_release,
+						    f, netdev, sch, data, cb_priv,
+						    cleanup);
+		if (IS_ERR(block_cb))
+			return PTR_ERR(block_cb);
+
+		flow_block_cb_add(block_cb, f);
+		list_add_tail(&block_cb->driver_list,
+			      &sf_hnat_indr_block_cb_list);
+		return 0;
+	case FLOW_BLOCK_UNBIND:
+		block_cb = flow_block_cb_lookup(f->block,
+						sf_hnat_setup_tc_block_cb,
+						netdev);
+		if (!block_cb)
+			return -ENOENT;
+
+		flow_indr_block_cb_remove(block_cb, f);
+		list_del(&block_cb->driver_list);
+		return 0;
+	default:
+		return -EOPNOTSUPP;
+	}
+}
+
+static int sf_hnat_indr_setup_cb(struct net_device *netdev, struct Qdisc *sch,
+				 void *cb_priv, enum tc_setup_type type,
+				 void *type_data, void *data,
+				 void (*cleanup)(struct flow_block_cb *block_cb))
+{
+	switch (type) {
+	case TC_SETUP_BLOCK:
+	case TC_SETUP_FT:
+		return sf_hnat_indr_setup_block(netdev, sch, cb_priv,
+						type_data, data, cleanup);
+	default:
+		return -EOPNOTSUPP;
+	}
+}
+
+/*
  * Hardware initialization
  */
 
@@ -812,6 +889,13 @@ static int __init sf_hnat_module_init(void)
 		return ret;
 	}
 
+	ret = flow_indr_dev_register(sf_hnat_indr_setup_cb, priv);
+	if (ret) {
+		sf_hnat_deinit(priv);
+		kfree(priv);
+		return ret;
+	}
+
 	g_sf_hnat = priv;
 
 	pr_info("Siflower HNAT driver v%s loaded, base=%p\n", DRV_VERSION, base);
@@ -827,6 +911,9 @@ static void __exit sf_hnat_module_exit(void)
 		return;
 
 	g_sf_hnat = NULL;
+
+	flow_indr_dev_unregister(sf_hnat_indr_setup_cb, priv,
+				 sf_hnat_indr_block_release);
 
 	sf_hnat_deinit(priv);
 	kfree(priv);
