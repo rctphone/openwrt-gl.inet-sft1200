@@ -78,9 +78,7 @@ NOSTDINC_FLAGS:= \
 	-DCONFIG_SF16A18_LMAC_USE_M_SFDSP \
 	-DCONFIG_SFA28_FULLMASK \
 	-DCONFIG_UPDATE_GAIN_TABLE \
-	-Werror \
-	-Wno-missing-prototypes \
-	-Wno-missing-declarations
+	-Werror
 
 define Build/Prepare
 	$(call Build/Prepare/Default)
@@ -91,6 +89,7 @@ define Build/Compile
 	+$(KERNEL_MAKE) $(PKG_JOBS) \
 		M="$(PKG_BUILD_DIR)/sf_smac/src" \
 		NOSTDINC_FLAGS="$(NOSTDINC_FLAGS)" \
+		KCFLAGS="-Wno-missing-prototypes -Wno-missing-declarations" \
 		$(EXTRA_KCONFIG) \
 		modules
 endef
