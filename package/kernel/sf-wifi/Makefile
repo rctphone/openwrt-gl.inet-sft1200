@@ -50,7 +50,10 @@ define KernelPackage/sf-wifi/config
 endef
 
 # Kernel version code for 6.12: (6 << 16) + (12 << 8) + 0 = 396288
-KERNEL_VERSION_CODE:=$(shell echo $$(($(LINUX_VERSION_MAJOR) * 65536 + $(LINUX_VERSION_MINOR) * 256 + $(LINUX_VERSION_PATCH))))
+# KERNEL_VERSION(6,12,0). The driver only gates on versions up to 4.19,
+# so the sublevel does not matter. LINUX_VERSION_MAJOR & co don't exist
+# in the OpenWrt build system, which made this expand to an empty string.
+KERNEL_VERSION_CODE:=396288
 
 EXTRA_KCONFIG:= \
 	CONFIG_SF16A18_WIFI_RF=m \
@@ -88,6 +91,7 @@ endef
 define Build/Compile
 	+$(KERNEL_MAKE) $(PKG_JOBS) \
 		M="$(PKG_BUILD_DIR)/sf_smac/src" \
+		DRV_PATH="$(PKG_BUILD_DIR)/sf_smac/src" \
 		NOSTDINC_FLAGS="$(NOSTDINC_FLAGS)" \
 		KCFLAGS="-Wno-missing-prototypes -Wno-missing-declarations" \
 		$(EXTRA_KCONFIG) \
