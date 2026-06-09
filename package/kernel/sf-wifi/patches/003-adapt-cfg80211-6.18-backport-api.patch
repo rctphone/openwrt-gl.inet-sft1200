@@ -1,0 +1,83 @@
+From: Ivan Semenov <ivan@ray.app>
+Date: Tue, 10 Jun 2026 00:00:00 +0000
+Subject: [PATCH] sf_wifi: adapt cfg80211 ops and events to current API
+
+The OpenWrt mac80211 package backports the 6.18-era cfg80211: ops
+gained radio_idx/link_id parameters and several event helpers take a
+link_id. Extend the handler signatures (parameters are ignored, the
+hardware is not multi-radio/MLO) and pass link 0 / no-link to the
+event calls.
+
+--- a/sf_smac/src/bb_src/umac/fullmac/siwifi_main.c
++++ b/sf_smac/src/bb_src/umac/fullmac/siwifi_main.c
+@@ -2127,6 +2127,7 @@
+     return 0;
+ }
+ static int siwifi_cfg80211_set_monitor_channel(struct wiphy *wiphy,
++                                             struct net_device *dev,
+                                              struct cfg80211_chan_def *chandef)
+ {
+     struct siwifi_hw *siwifi_hw = wiphy_priv(wiphy);
+@@ -2197,11 +2198,13 @@
+     }
+     return 0;
+ }
+-static int siwifi_cfg80211_set_wiphy_params(struct wiphy *wiphy, u32 changed)
++static int siwifi_cfg80211_set_wiphy_params(struct wiphy *wiphy, int radio_idx,
++                                            u32 changed)
+ {
+     return 0;
+ }
+ static int siwifi_cfg80211_set_tx_power(struct wiphy *wiphy, struct wireless_dev *wdev,
++                                      int radio_idx,
+                                       enum nl80211_tx_power_setting type, int mbm)
+ {
+     struct siwifi_hw *siwifi_hw = wiphy_priv(wiphy);
+@@ -2238,6 +2241,7 @@
+     return siwifi_cfg80211_set_tx_power(wiphy,wdev,type,mbm);
+ }
+ static int siwifi_cfg80211_get_tx_power(struct wiphy *wiphy, struct wireless_dev *wdev,
++                                    int radio_idx, unsigned int link_id,
+                                     int *dbm)
+ {
+  struct siwifi_hw *siwifi_hw = wiphy_priv(wiphy);
+@@ -2463,7 +2467,7 @@
+ int siwifi_cfg80211_start_radar_detection(struct wiphy *wiphy,
+                                         struct net_device *dev,
+                                         struct cfg80211_chan_def *chandef,
+-                                        u32 cac_time_ms)
++                                        u32 cac_time_ms, int link_id)
+ {
+     struct siwifi_hw *siwifi_hw = wiphy_priv(wiphy);
+     struct siwifi_vif *siwifi_vif = netdev_priv(dev);
+--- a/sf_smac/src/bb_src/umac/siwifi_radar.c
++++ b/sf_smac/src/bb_src/umac/siwifi_radar.c
+@@ -926,7 +926,7 @@
+     }
+     ctxt = &siwifi_hw->chanctx_table[radar->cac_vif->ch_index];
+     cfg80211_cac_event(radar->cac_vif->ndev, &ctxt->chan_def,
+-                       NL80211_RADAR_CAC_FINISHED, GFP_KERNEL);
++                       NL80211_RADAR_CAC_FINISHED, GFP_KERNEL, 0);
+  spin_unlock_bh(&siwifi_hw->cb_lock);
+     siwifi_send_apm_stop_cac_req(siwifi_hw, radar->cac_vif);
+  spin_lock_bh(&siwifi_hw->cb_lock);
+--- a/sf_smac/src/bb_src/umac/fullmac/siwifi_rx.c
++++ b/sf_smac/src/bb_src/umac/fullmac/siwifi_rx.c
+@@ -1191,7 +1191,7 @@
+         hdr = (struct ieee80211_hdr *)(skb->data + msdu_offset);
+         siwifi_vif = siwifi_rx_get_vif(siwifi_hw, hw_rxhdr->flags_vif_idx);
+         if (siwifi_vif) {
+-            cfg80211_rx_spurious_frame(siwifi_vif->ndev, hdr->addr2, GFP_ATOMIC);
++            cfg80211_rx_spurious_frame(siwifi_vif->ndev, hdr->addr2, -1, GFP_ATOMIC);
+         }
+         siwifi_ipc_rxbuf_elem_repush(siwifi_hw, skb);
+         goto end;
+@@ -1278,7 +1278,7 @@
+                 }
+                 if (hw_rxhdr->flags_is_4addr && !siwifi_vif->use_4addr) {
+                     cfg80211_rx_unexpected_4addr_frame(siwifi_vif->ndev,
+-                                                       sta->mac_addr, GFP_ATOMIC);
++                                                       sta->mac_addr, -1, GFP_ATOMIC);
+                 }
+             } else {
+                 dev_err(siwifi_hw->dev, "Frame received but no active sta (%d)",
