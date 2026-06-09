@@ -7,10 +7,10 @@ include $(TOPDIR)/rules.mk
 include $(INCLUDE_DIR)/kernel.mk
 
 PKG_NAME:=sf-hnat
-PKG_VERSION:=2.0.0
+PKG_VERSION:=2.1.0
 PKG_RELEASE:=1
 
-PKG_MAINTAINER:=OpenWrt Developers
+PKG_MAINTAINER:=Ivan Semenov <ivan@ray.app>
 PKG_LICENSE:=GPL-2.0-only
 
 include $(INCLUDE_DIR)/package.mk
@@ -21,7 +21,6 @@ define KernelPackage/sf-hnat
   DEPENDS:=@TARGET_siflower +kmod-nf-flow
   FILES:=$(PKG_BUILD_DIR)/sf-hnat.ko
   AUTOLOAD:=$(call AutoLoad,45,sf-hnat)
-  KCONFIG:=
 endef
 
 define KernelPackage/sf-hnat/description
@@ -70,11 +69,6 @@ define Build/Compile
 		EXTRA_CFLAGS="$(EXTRA_CFLAGS)" \
 		$(EXTRA_KCONFIG) \
 		modules
-endef
-
-define KernelPackage/sf-hnat/install
-	$(INSTALL_DIR) $(1)/etc/init.d
-	$(INSTALL_DIR) $(1)/etc/config
 endef
 
 $(eval $(call KernelPackage,sf-hnat))
