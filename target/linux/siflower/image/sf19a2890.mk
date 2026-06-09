@@ -25,7 +25,8 @@ define Device/glinet_gl-sft1200
   DEVICE_VENDOR := GL.iNet
   DEVICE_MODEL :=  GL-SFT1200
   DEVICE_DTS := sf19a2890_glinet_gl-sft1200
-  DEVICE_PACKAGES := kmod-dsa-mxl-gsw1xx kmod-phy-sf19a2890-usb kmod-usb-dwc2
+  DEVICE_PACKAGES := kmod-dsa-mxl-gsw1xx kmod-phy-sf19a2890-usb kmod-usb-dwc2 \
+	kmod-sf-wifi kmod-sf-hnat
   IMAGE_SIZE := 122880k
   BLOCKSIZE := 128k
   PAGESIZE := 2048
