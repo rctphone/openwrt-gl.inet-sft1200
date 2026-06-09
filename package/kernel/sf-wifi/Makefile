@@ -8,7 +8,7 @@ include $(TOPDIR)/rules.mk
 
 PKG_NAME:=sf-wifi
 PKG_VERSION:=1.0.0
-PKG_RELEASE:=1
+PKG_RELEASE:=2
 
 PKG_SOURCE_PROTO:=git
 PKG_SOURCE_URL:=https://github.com/Siflower/sf_wifi.git
@@ -114,9 +114,13 @@ define KernelPackage/sf-wifi/install
 	$(CP) $(PKG_BUILD_DIR)/sf_smac/config/a28fullmask/dig_gaintable_expa.ini $(1)/lib/firmware/
 	$(CP) $(PKG_BUILD_DIR)/sf_smac/config/a28fullmask/default_hb_txpower_table.ini $(1)/lib/firmware/
 	$(CP) $(PKG_BUILD_DIR)/sf_smac/config/a28fullmask/default_lb_txpower_table.ini $(1)/lib/firmware/
+	$(CP) $(PKG_BUILD_DIR)/sf_smac/config/a28fullmask/default_hb_txpower_table_expa.ini $(1)/lib/firmware/
+	$(CP) $(PKG_BUILD_DIR)/sf_smac/config/a28fullmask/default_lb_txpower_table_expa.ini $(1)/lib/firmware/
 	$(CP) $(PKG_BUILD_DIR)/sf_smac/config/a28fullmask/rf_gain_table.ini $(1)/lib/firmware/
 	$(CP) $(PKG_BUILD_DIR)/sf_smac/config/a28fullmask/rf_trx_path.ini $(1)/lib/firmware/
 	$(CP) $(PKG_BUILD_DIR)/sf_smac/config/cali_table/default_txpower_calibrate_table.bin $(1)/lib/firmware/
+	$(CP) $(PKG_BUILD_DIR)/sf_smac/config/cali_table/default_txpower_calibrate_expa_table.bin $(1)/lib/firmware/
+	$(CP) $(PKG_BUILD_DIR)/sf_smac/config/cali_table/txp_offset_sleepmode_low.ini $(1)/lib/firmware/
 	
 	# Scripts
 	$(INSTALL_DIR) $(1)/bin

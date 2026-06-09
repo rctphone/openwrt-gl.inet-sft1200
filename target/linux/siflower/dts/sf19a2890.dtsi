@@ -16,7 +16,15 @@
 	};
 
 	chosen {
-		bootargs = "earlycon";
+		/*
+		 * The vendor u-boot appends "console=ttyS0,115200n8" (and
+		 * mem=/rdinit=) via MIPS_CMDLINE_DTB_EXTEND. A console=
+		 * argument disables stdout-path based console selection,
+		 * and ttyS0 does not exist (the UART is a PL011), which
+		 * would leave the kernel silent after earlycon. Name the
+		 * real console explicitly so it stays registered.
+		 */
+		bootargs = "earlycon console=ttyAMA0,115200";
 	};
 
 	reserved-memory {
@@ -137,9 +145,12 @@
 			status = "disabled";
 		};
 
-		wlan24: wifi@12400000 {
+		/* Register ranges match the vendor DT on stock firmware:
+		 * LB MAC at 0x11000000, HB MAC at 0x17800000.
+		 */
+		wlan24: wifi@11000000 {
 			compatible = "siflower,sf19a2890-lb";
-			reg = <0x12400000 0x400000>;
+			reg = <0x11000000 0x400000>;
 			interrupts = <GIC_SHARED 176 IRQ_TYPE_LEVEL_HIGH>,
 				     <GIC_SHARED 177 IRQ_TYPE_LEVEL_HIGH>;
 			interrupt-names = "lmac", "umac";
@@ -156,9 +167,9 @@
 			status = "disabled";
 		};
 
-		wlan5: wifi@12800000 {
+		wlan5: wifi@17800000 {
 			compatible = "siflower,sf19a2890-hb";
-			reg = <0x12800000 0x400000>;
+			reg = <0x17800000 0x400000>;
 			interrupts = <GIC_SHARED 178 IRQ_TYPE_LEVEL_HIGH>,
 				     <GIC_SHARED 179 IRQ_TYPE_LEVEL_HIGH>;
 			interrupt-names = "lmac", "umac";
