@@ -78,7 +78,9 @@ NOSTDINC_FLAGS:= \
 	-DCONFIG_SF16A18_LMAC_USE_M_SFDSP \
 	-DCONFIG_SFA28_FULLMASK \
 	-DCONFIG_UPDATE_GAIN_TABLE \
-	-Werror
+	-Werror \
+	-Wno-missing-prototypes \
+	-Wno-missing-declarations
 
 define Build/Prepare
 	$(call Build/Prepare/Default)
