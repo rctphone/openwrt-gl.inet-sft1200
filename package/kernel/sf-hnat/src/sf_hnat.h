@@ -156,8 +156,10 @@ struct sf_hnat_priv {
 	void __iomem *base;		/* HNAT register base */
 	struct net_device *ndev;	/* Associated network device */
 
-	/* Flow table */
-	struct rhashtable flow_table;
+	/* Flow tracking: cookie -> pair node, canonical tuple -> pair */
+	struct rhashtable flow_table;		/* cookie map */
+	struct rhashtable pair_table;		/* canonical tuple map */
+	struct list_head pending_list;		/* half-assembled pairs */
 	struct sf_hashkey napt_keys[SF_NAPT_TABLE_MAX];
 	struct sf_napt_crc_info napt_crc[SF_NAPT_TABLE_MAX];
 
@@ -205,10 +207,17 @@ struct sf_hnat_priv {
 	spinlock_t csr_lock;		/* CSR access lock */
 	struct mutex flow_mutex;	/* Flow table mutex */
 
+	/* IP address tracking */
+	struct notifier_block inetaddr_nb;
+
 	/* Statistics */
 	u32 add_fail_count;
 	u32 update_flow_count;
 	u32 crc_clean_flow_count;
+	u32 offload_cnt;
+	u32 unoffload_cnt;
+	u32 napt_hash_full_count;
+	u32 dip_hash_full_count;
 
 	/* Debug */
 	struct dentry *debugfs;
