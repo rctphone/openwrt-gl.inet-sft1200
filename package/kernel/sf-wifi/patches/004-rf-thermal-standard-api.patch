@@ -1,15 +1,3 @@
-From: Ivan Semenov <ivan@ray.app>
-Date: Tue, 10 Jun 2026 00:00:00 +0000
-Subject: [PATCH] sf_wifi: port RF thermal throttling to the standard thermal API
-
-The vendor COOLING_TEMP support registered the RF temperature sensor
-and TX-power cooling device through an sfax8_thermal glue layer that
-only exists in the Siflower SDK. Register through the standard
-devm_thermal_of_zone / thermal_of_cooling_device API instead, adapt
-the callback signatures, and read the factory calibration temperature
-(thermal_state baseline) from the cooling-temp NVMEM cell rather than
-the dropped sfax8-factory-read driver.
-
 --- a/sf_smac/src/rf/rf_entry.c
 +++ b/sf_smac/src/rf/rf_entry.c
 @@ -15,9 +15,6 @@
@@ -180,3 +168,37 @@ the dropped sfax8-factory-read driver.
  #ifdef CONFIG_SF16A18_RF_SYSFS_DEBUG
      sf_wifi_rf_sysfs_unregister(pdev);
  #endif
+--- a/sf_smac/src/bb_src/umac/siwifi_msg_tx.c
++++ b/sf_smac/src/bb_src/umac/siwifi_msg_tx.c
+@@ -788,7 +788,9 @@
+     return siwifi_send_msg(siwifi_hw, void_param, 1, MM_RF_GET_TEMP_CFM, cfm);
+ }
+ #ifdef CONFIG_SIWIFI_COOLING_TEMP
+-#ifdef CONFIG_SFA28_MPW0
++/* MM_CHANGE_POWER_REQ is part of the common LMAC message protocol,
++ * do not gate the helper on the MPW0 engineering-sample config.
++ */
+ int siwifi_send_change_power_req(struct siwifi_hw *siwifi_hw,int change_power,int change_power_trend){
+  struct mm_change_power_req *req;
+  SIWIFI_DBG(SIWIFI_FN_ENTRY_STR);
+@@ -799,20 +801,7 @@
+     req->change_power_trend = change_power_trend;
+  return siwifi_send_msg(siwifi_hw, req, 0, 0, NULL);
+ }
+-#else
+-int siwifi_send_cooling_temp_req(struct siwifi_hw *siwifi_hw)
+-{
+-    struct mm_cooling_temp_req *req;
+-    SIWIFI_DBG(SIWIFI_FN_ENTRY_STR);
+-    req = siwifi_msg_zalloc(MM_COOLING_TEMP_REQ, TASK_MM, DRV_TASK_ID,
+-                            sizeof(struct mm_cooling_temp_req));
+-    if(!req)
+-        return -ENOMEM;
+-    req->max_pow_idx = siwifi_hw->max_txpower_idx;
+-    return siwifi_send_msg(siwifi_hw, req, 0, 0, NULL);
+-}
+ #endif
+-#endif
+ #ifdef CONFIG_SF16A18_WIFI_ATE_TOOLS
+ int siwifi_send_me_ate_tools_op(struct siwifi_hw *siwifi_hw,
+                 struct cfg80211_chan_def *def,
