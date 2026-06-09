@@ -204,12 +204,16 @@
 		i2c: i2c@18100000 {
 			compatible = "snps,designware-i2c";
 			reg = <0x18100000 0x1000>;
+			#address-cells = <1>;
+			#size-cells = <0>;
 			interrupts = <GIC_SHARED 217 IRQ_TYPE_LEVEL_HIGH>;
 			clocks = <&i2cclk 0>;
 			clock-names = "ref";
+			clock-frequency = <400000>;
 			resets = <&i2crst 0>;
 			pinctrl-names = "default";
 			pinctrl-0 = <&i2c0_pins>;
+			status = "disabled";
 		};
 
 		spi: spi@18202000 {
