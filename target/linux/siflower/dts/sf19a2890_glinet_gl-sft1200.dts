@@ -50,45 +50,6 @@
 		};
 	};
 
-	factory-read {
-		compatible = "siflower,sf19a2890-factory-read";
-
-		/* MAC address */
-		mtd-mac-address = <&factory 0x0>;
-
-		/* Serial number */
-		mtd-sn-number = <&factory 0x6>;
-		mtd-sn-flag = <&factory 0x16>;
-
-		/* Hardware version */
-		mtd-hardware-ver-flag = <&factory 0x1b>;
-		mtd-hardware-ver = <&factory 0x1d>;
-
-		/* Model version */
-		mtd-model-ver-flag = <&factory 0x3d>;
-		mtd-model-ver = <&factory 0x3f>;
-
-		/* Country ID */
-		mtd-country-id = <&factory 0x5f>;
-
-		/* Hardware feature */
-		mtd-hw-feature = <&factory 0x61>;
-
-		/* Vendor info */
-		mtd-vender-flag = <&factory 0x65>;
-		mtd-vender = <&factory 0x67>;
-
-		/* WiFi calibration */
-		mtd-wifi-version = <&factory 0xa5>;
-		mtd-wifi-info = <&factory 0xa7>;
-
-		/* GMAC delay */
-		mtd-gmac-delay = <&factory 0xb2>;
-
-		/* Cooling temperature */
-		mtd-cooling-temp = <&factory 0xb6>;
-	};
-
 };
 
 &gmac {
@@ -113,18 +74,18 @@
 
 &wlan24 {
 	status = "okay";
+	nvmem-cells = <&rf_cali_config_factory_800>,
+		      <&wifi_version_factory_800>,
+		      <&wifi_info_factory_802>;
+	nvmem-cell-names = "rf-cali-config", "wifi-version", "wifi-info";
 };
 
 &wlan5 {
 	status = "okay";
-};
-
-&wlan24 {
-	status = "okay";
-};
-
-&wlan5 {
-	status = "okay";
+	nvmem-cells = <&rf_cali_config_factory_800>,
+		      <&wifi_version_factory_800>,
+		      <&wifi_info_factory_802>;
+	nvmem-cell-names = "rf-cali-config", "wifi-version", "wifi-info";
 };
 
 &uart0 {
@@ -185,11 +146,24 @@
 					};
 
 					/*
-					 * XO calibration config for WiFi RF.
+					 * WiFi calibration blob, layout verified against
+					 * a factory dump from stock firmware:
+					 *   0x800: version marker (2 bytes, "XO"/"V2".."V4")
+					 *   0x802: XO config (le16)
+					 *   0x802: txpower calibration table ("wifi info",
+					 *          XO + LB + HB gain tables, max 3380 bytes)
 					 * Vendor DT used "mtd-rf-cali-config = <&factory 0x800>".
 					 */
 					rf_cali_config_factory_800: rf-cali-config@800 {
 						reg = <0x800 0x4>;
+					};
+
+					wifi_version_factory_800: wifi-version@800 {
+						reg = <0x800 0x2>;
+					};
+
+					wifi_info_factory_802: wifi-info@802 {
+						reg = <0x802 0xd34>;
 					};
 				};
 			};

@@ -118,7 +118,7 @@ diff --git a/sf_smac/src/bb_src/umac/siwifi_factory_info.c b/sf_smac/src/bb_src/
      struct mpw0_plat_data *priv =
                      (struct mpw0_plat_data *)&siwifi_hw->plat->priv;
      int lb = priv->band & LB_MODULE;
-@@ -228,27 +284,30 @@
+@@ -228,27 +284,36 @@
     goto read_xo_value;
    }
   }
@@ -143,24 +143,30 @@ diff --git a/sf_smac/src/bb_src/umac/siwifi_factory_info.c b/sf_smac/src/bb_src/
 - }
 -#else
 +
-+	/* Try reading the calibration blob directly from NVMEM (factory). */
++	/* Read calibration table version and blob from NVMEM (factory). */
 +	{
 +		u8 *nv = NULL;
 +		size_t nv_len = 0;
 +
-+		ret = sf_wifi_read_nvmem(siwifi_hw->dev, "txpower-cali-config", &nv, &nv_len);
-+		if (!ret && nv_len >= size_calitable) {
-+			memcpy(txpower_table_value, nv, size_calitable);
-+			factory_info->version =
-+				sf_wifi_check_calibration_table_available((char *)&txpower_table_value[2048]);
-+			if (factory_info->version) {
-+				printk("txpower calibration table use NVMEM\n");
-+				memcpy(wifi_info_buf, &txpower_table_value[2050], wifi_info_size);
++		factory_info->version = 0;
++		if (!sf_wifi_read_nvmem(siwifi_hw->dev, "wifi-version", &nv, &nv_len)) {
++			if (nv_len >= 2)
++				factory_info->version =
++					sf_wifi_check_calibration_table_available((char *)nv);
++			kfree(nv);
++			nv = NULL;
++		}
++
++		if (factory_info->version &&
++		    !sf_wifi_read_nvmem(siwifi_hw->dev, "wifi-info", &nv, &nv_len)) {
++			if (nv_len >= wifi_info_size) {
++				memcpy(wifi_info_buf, nv, wifi_info_size);
 +				kfree(nv);
++				printk("txpower calibration table use factory info\n");
 +				goto read_xo_value;
 +			}
++			kfree(nv);
 +		}
-+		kfree(nv);
 +	}
 +
      factory_info->version = 0;
@@ -168,7 +174,7 @@ diff --git a/sf_smac/src/bb_src/umac/siwifi_factory_info.c b/sf_smac/src/bb_src/
   if(factory_info->version == 0){
    if ((phy_tag->flag & RF_EXTERNAL_PA_ENABLE)) {
     fp_read = filp_open(second_txpower_expa_table_file, O_RDONLY , 0);
-@@ -275,10 +334,7 @@
+@@ -275,10 +340,7 @@
    }
   }
  read_xo_value:
@@ -280,7 +286,7 @@ diff --git a/sf_smac/src/rf/rf_entry.c b/sf_smac/src/rf/rf_entry.c
      if (of_property_read_u32(pdev->dev.of_node, "force_expa", &force_expa)) {
          force_expa = 0;
      }
-@@ -712,56 +690,51 @@
+@@ -712,56 +690,54 @@
      return feature;
  }
  EXPORT_SYMBOL_GPL(sf_wifi_rf_get_feature);
@@ -372,12 +378,15 @@ diff --git a/sf_smac/src/rf/rf_entry.c b/sf_smac/src/rf/rf_entry.c
 -#ifdef CONFIG_SFAX8_FACTORY_READ
 -    }
 -#endif
++	int ret;
 +
-+	(void)sf_wifi_rf_cali_config_get_nvmem(pdev, &value);
++	ret = sf_wifi_rf_cali_config_get_nvmem(pdev, &value);
++	if (ret == -EPROBE_DEFER)
++		return ret;
      printk("XO config value : %x\n", value);
      priv->xo_config = value;
      return 0;
-@@ -1208,35 +1181,8 @@
+@@ -1208,35 +1184,8 @@
  };
  int sf_wifi_set_thermal_state(void)
  {
