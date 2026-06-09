@@ -1,0 +1,22 @@
+From: Ivan Semenov <ivan@ray.app>
+Subject: [PATCH] cpufreq: dt-platdev: allow Siflower SF19A2890
+
+The SF19A2890 CPU clock is a plain mux/divider handled by the SoC
+clock driver and the cpu nodes carry an operating-points table, so
+the generic cpufreq-dt driver works as-is (the stock firmware uses
+exactly this setup). Add the SoC to the allowlist so the platform
+device gets created.
+
+Signed-off-by: Ivan Semenov <ivan@ray.app>
+---
+--- a/drivers/cpufreq/cpufreq-dt-platdev.c
++++ b/drivers/cpufreq/cpufreq-dt-platdev.c
+@@ -176,6 +176,8 @@ static const struct of_device_id allowli
+ 	{ .compatible = "qcom,sm8550", },
+ 	{ .compatible = "qcom,sm8650", },
+ 
++	{ .compatible = "siflower,sf19a2890", },
++
+ 	{ .compatible = "st,stih407", },
+ 	{ .compatible = "st,stih410", },
+ 	{ .compatible = "st,stih418", },

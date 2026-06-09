@@ -378,6 +378,29 @@
 			clocks = <&clk CLK_MUXDIV_CPU>;
 			clock-names = "cpu";
 			clock-latency = <0>;
+			/*
+			 * Stock firmware OPPs up to the nominal 1GHz (it also
+			 * lists 1.1/1.2GHz but caps the policy at 1GHz).
+			 * There is no CPU regulator; the voltage is a dummy.
+			 */
+			operating-points =
+				<100000 1000000>,
+				<150000 1000000>,
+				<200000 1000000>,
+				<250000 1000000>,
+				<300000 1000000>,
+				<336000 1000000>,
+				<350000 1000000>,
+				<400000 1000000>,
+				<450000 1000000>,
+				<500000 1000000>,
+				<550000 1000000>,
+				<600000 1000000>,
+				<672000 1000000>,
+				<700000 1000000>,
+				<800000 1000000>,
+				<900000 1000000>,
+				<1000000 1000000>;
 		};
 
 		cpu@1 {
@@ -387,6 +410,29 @@
 			clocks = <&clk CLK_MUXDIV_CPU>;
 			clock-names = "cpu";
 			clock-latency = <0>;
+			/*
+			 * Stock firmware OPPs up to the nominal 1GHz (it also
+			 * lists 1.1/1.2GHz but caps the policy at 1GHz).
+			 * There is no CPU regulator; the voltage is a dummy.
+			 */
+			operating-points =
+				<100000 1000000>,
+				<150000 1000000>,
+				<200000 1000000>,
+				<250000 1000000>,
+				<300000 1000000>,
+				<336000 1000000>,
+				<350000 1000000>,
+				<400000 1000000>,
+				<450000 1000000>,
+				<500000 1000000>,
+				<550000 1000000>,
+				<600000 1000000>,
+				<672000 1000000>,
+				<700000 1000000>,
+				<800000 1000000>,
+				<900000 1000000>,
+				<1000000 1000000>;
 		};
 		cpu@2 {
 			device_type = "cpu";
@@ -395,6 +441,29 @@
 			clocks = <&clk CLK_MUXDIV_CPU>;
 			clock-names = "cpu";
 			clock-latency = <0>;
+			/*
+			 * Stock firmware OPPs up to the nominal 1GHz (it also
+			 * lists 1.1/1.2GHz but caps the policy at 1GHz).
+			 * There is no CPU regulator; the voltage is a dummy.
+			 */
+			operating-points =
+				<100000 1000000>,
+				<150000 1000000>,
+				<200000 1000000>,
+				<250000 1000000>,
+				<300000 1000000>,
+				<336000 1000000>,
+				<350000 1000000>,
+				<400000 1000000>,
+				<450000 1000000>,
+				<500000 1000000>,
+				<550000 1000000>,
+				<600000 1000000>,
+				<672000 1000000>,
+				<700000 1000000>,
+				<800000 1000000>,
+				<900000 1000000>,
+				<1000000 1000000>;
 		};
 		cpu@3 {
 			device_type = "cpu";
@@ -403,6 +472,29 @@
 			clocks = <&clk CLK_MUXDIV_CPU>;
 			clock-names = "cpu";
 			clock-latency = <0>;
+			/*
+			 * Stock firmware OPPs up to the nominal 1GHz (it also
+			 * lists 1.1/1.2GHz but caps the policy at 1GHz).
+			 * There is no CPU regulator; the voltage is a dummy.
+			 */
+			operating-points =
+				<100000 1000000>,
+				<150000 1000000>,
+				<200000 1000000>,
+				<250000 1000000>,
+				<300000 1000000>,
+				<336000 1000000>,
+				<350000 1000000>,
+				<400000 1000000>,
+				<450000 1000000>,
+				<500000 1000000>,
+				<550000 1000000>,
+				<600000 1000000>,
+				<672000 1000000>,
+				<700000 1000000>,
+				<800000 1000000>,
+				<900000 1000000>,
+				<1000000 1000000>;
 		};
 	};
 
