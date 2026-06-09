@@ -27,6 +27,332 @@
 		bootargs = "earlycon console=ttyAMA0,115200";
 	};
 
+	thermal-zones {
+		/*
+		 * Mirrors the stock firmware rf_zone: the WiFi RF block is
+		 * both the temperature sensor and the cooling device (TX
+		 * power reduction), with 28 passive trips from -20C to 115C
+		 * in 5C steps and the cooling state equal to the trip index.
+		 */
+		rf-thermal {
+			polling-delay-passive = <1000>;
+			polling-delay = <5000>;
+			thermal-sensors = <&wlan_rf>;
+
+			trips {
+				rf_alert0: rf-alert0 {
+					temperature = <(-20000)>;
+					hysteresis = <1000>;
+					type = "passive";
+				};
+
+				rf_alert1: rf-alert1 {
+					temperature = <(-15000)>;
+					hysteresis = <1000>;
+					type = "passive";
+				};
+
+				rf_alert2: rf-alert2 {
+					temperature = <(-10000)>;
+					hysteresis = <1000>;
+					type = "passive";
+				};
+
+				rf_alert3: rf-alert3 {
+					temperature = <(-5000)>;
+					hysteresis = <1000>;
+					type = "passive";
+				};
+
+				rf_alert4: rf-alert4 {
+					temperature = <0>;
+					hysteresis = <1000>;
+					type = "passive";
+				};
+
+				rf_alert5: rf-alert5 {
+					temperature = <5000>;
+					hysteresis = <1000>;
+					type = "passive";
+				};
+
+				rf_alert6: rf-alert6 {
+					temperature = <10000>;
+					hysteresis = <1000>;
+					type = "passive";
+				};
+
+				rf_alert7: rf-alert7 {
+					temperature = <15000>;
+					hysteresis = <1000>;
+					type = "passive";
+				};
+
+				rf_alert8: rf-alert8 {
+					temperature = <20000>;
+					hysteresis = <1000>;
+					type = "passive";
+				};
+
+				rf_alert9: rf-alert9 {
+					temperature = <25000>;
+					hysteresis = <1000>;
+					type = "passive";
+				};
+
+				rf_alert10: rf-alert10 {
+					temperature = <30000>;
+					hysteresis = <1000>;
+					type = "passive";
+				};
+
+				rf_alert11: rf-alert11 {
+					temperature = <35000>;
+					hysteresis = <1000>;
+					type = "passive";
+				};
+
+				rf_alert12: rf-alert12 {
+					temperature = <40000>;
+					hysteresis = <1000>;
+					type = "passive";
+				};
+
+				rf_alert13: rf-alert13 {
+					temperature = <45000>;
+					hysteresis = <1000>;
+					type = "passive";
+				};
+
+				rf_alert14: rf-alert14 {
+					temperature = <50000>;
+					hysteresis = <1000>;
+					type = "passive";
+				};
+
+				rf_alert15: rf-alert15 {
+					temperature = <55000>;
+					hysteresis = <1000>;
+					type = "passive";
+				};
+
+				rf_alert16: rf-alert16 {
+					temperature = <60000>;
+					hysteresis = <1000>;
+					type = "passive";
+				};
+
+				rf_alert17: rf-alert17 {
+					temperature = <65000>;
+					hysteresis = <1000>;
+					type = "passive";
+				};
+
+				rf_alert18: rf-alert18 {
+					temperature = <70000>;
+					hysteresis = <1000>;
+					type = "passive";
+				};
+
+				rf_alert19: rf-alert19 {
+					temperature = <75000>;
+					hysteresis = <1000>;
+					type = "passive";
+				};
+
+				rf_alert20: rf-alert20 {
+					temperature = <80000>;
+					hysteresis = <1000>;
+					type = "passive";
+				};
+
+				rf_alert21: rf-alert21 {
+					temperature = <85000>;
+					hysteresis = <1000>;
+					type = "passive";
+				};
+
+				rf_alert22: rf-alert22 {
+					temperature = <90000>;
+					hysteresis = <1000>;
+					type = "passive";
+				};
+
+				rf_alert23: rf-alert23 {
+					temperature = <95000>;
+					hysteresis = <1000>;
+					type = "passive";
+				};
+
+				rf_alert24: rf-alert24 {
+					temperature = <100000>;
+					hysteresis = <1000>;
+					type = "passive";
+				};
+
+				rf_alert25: rf-alert25 {
+					temperature = <105000>;
+					hysteresis = <1000>;
+					type = "passive";
+				};
+
+				rf_alert26: rf-alert26 {
+					temperature = <110000>;
+					hysteresis = <1000>;
+					type = "passive";
+				};
+
+				rf_alert27: rf-alert27 {
+					temperature = <115000>;
+					hysteresis = <1000>;
+					type = "passive";
+				};
+			};
+
+			cooling-maps {
+				map0 {
+					trip = <&rf_alert0>;
+					cooling-device = <&wlan_rf 0 0>;
+				};
+
+				map1 {
+					trip = <&rf_alert1>;
+					cooling-device = <&wlan_rf 1 1>;
+				};
+
+				map2 {
+					trip = <&rf_alert2>;
+					cooling-device = <&wlan_rf 2 2>;
+				};
+
+				map3 {
+					trip = <&rf_alert3>;
+					cooling-device = <&wlan_rf 3 3>;
+				};
+
+				map4 {
+					trip = <&rf_alert4>;
+					cooling-device = <&wlan_rf 4 4>;
+				};
+
+				map5 {
+					trip = <&rf_alert5>;
+					cooling-device = <&wlan_rf 5 5>;
+				};
+
+				map6 {
+					trip = <&rf_alert6>;
+					cooling-device = <&wlan_rf 6 6>;
+				};
+
+				map7 {
+					trip = <&rf_alert7>;
+					cooling-device = <&wlan_rf 7 7>;
+				};
+
+				map8 {
+					trip = <&rf_alert8>;
+					cooling-device = <&wlan_rf 8 8>;
+				};
+
+				map9 {
+					trip = <&rf_alert9>;
+					cooling-device = <&wlan_rf 9 9>;
+				};
+
+				map10 {
+					trip = <&rf_alert10>;
+					cooling-device = <&wlan_rf 10 10>;
+				};
+
+				map11 {
+					trip = <&rf_alert11>;
+					cooling-device = <&wlan_rf 11 11>;
+				};
+
+				map12 {
+					trip = <&rf_alert12>;
+					cooling-device = <&wlan_rf 12 12>;
+				};
+
+				map13 {
+					trip = <&rf_alert13>;
+					cooling-device = <&wlan_rf 13 13>;
+				};
+
+				map14 {
+					trip = <&rf_alert14>;
+					cooling-device = <&wlan_rf 14 14>;
+				};
+
+				map15 {
+					trip = <&rf_alert15>;
+					cooling-device = <&wlan_rf 15 15>;
+				};
+
+				map16 {
+					trip = <&rf_alert16>;
+					cooling-device = <&wlan_rf 16 16>;
+				};
+
+				map17 {
+					trip = <&rf_alert17>;
+					cooling-device = <&wlan_rf 17 17>;
+				};
+
+				map18 {
+					trip = <&rf_alert18>;
+					cooling-device = <&wlan_rf 18 18>;
+				};
+
+				map19 {
+					trip = <&rf_alert19>;
+					cooling-device = <&wlan_rf 19 19>;
+				};
+
+				map20 {
+					trip = <&rf_alert20>;
+					cooling-device = <&wlan_rf 20 20>;
+				};
+
+				map21 {
+					trip = <&rf_alert21>;
+					cooling-device = <&wlan_rf 21 21>;
+				};
+
+				map22 {
+					trip = <&rf_alert22>;
+					cooling-device = <&wlan_rf 22 22>;
+				};
+
+				map23 {
+					trip = <&rf_alert23>;
+					cooling-device = <&wlan_rf 23 23>;
+				};
+
+				map24 {
+					trip = <&rf_alert24>;
+					cooling-device = <&wlan_rf 24 24>;
+				};
+
+				map25 {
+					trip = <&rf_alert25>;
+					cooling-device = <&wlan_rf 25 25>;
+				};
+
+				map26 {
+					trip = <&rf_alert26>;
+					cooling-device = <&wlan_rf 26 26>;
+				};
+
+				map27 {
+					trip = <&rf_alert27>;
+					cooling-device = <&wlan_rf 27 27>;
+				};
+			};
+		};
+	};
+
 	reserved-memory {
 		#address-cells = <1>;
 		#size-cells = <1>;
@@ -142,6 +468,8 @@
 			resets = <&rfrst 0>;
 			pinctrl-names = "default";
 			pinctrl-0 = <&wlan_pins>;
+			#thermal-sensor-cells = <0>;
+			#cooling-cells = <2>;
 			status = "disabled";
 		};
 
@@ -265,6 +593,36 @@
 			pinctrl-names = "default";
 			pinctrl-0 = <&uart2_pins>;
 			status = "disabled";
+		};
+
+		gdma: dma@11800000 {
+			compatible = "siflower,sfax8-gdma";
+			reg = <0x11800000 0x1000>;
+			status = "disabled";
+		};
+
+		pwm: pwm@18500000 {
+			compatible = "siflower,sfax8-pwm";
+			reg = <0x18500000 0x1000>;
+			status = "disabled";
+		};
+
+		pwm_out: pwm@18501000 {
+			compatible = "siflower,sfax8-pwm-output";
+			reg = <0x18501000 0x1000>;
+			status = "disabled";
+		};
+
+		timer: timer@18600000 {
+			compatible = "siflower,sfax8-timer";
+			reg = <0x18600000 0x14>, <0x18600014 0x14>,
+			      <0x18601000 0x14>, <0x18601014 0x14>;
+			status = "disabled";
+		};
+
+		sysm: syscon@19e00000 {
+			compatible = "siflower,sf19a2890-sysm", "syscon";
+			reg = <0x19e00000 0x30000>;
 		};
 
 		watchdog: watchdog@18700000 {

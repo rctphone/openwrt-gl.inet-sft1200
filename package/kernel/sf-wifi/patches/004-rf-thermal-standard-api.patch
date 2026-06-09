@@ -1,0 +1,182 @@
+From: Ivan Semenov <ivan@ray.app>
+Date: Tue, 10 Jun 2026 00:00:00 +0000
+Subject: [PATCH] sf_wifi: port RF thermal throttling to the standard thermal API
+
+The vendor COOLING_TEMP support registered the RF temperature sensor
+and TX-power cooling device through an sfax8_thermal glue layer that
+only exists in the Siflower SDK. Register through the standard
+devm_thermal_of_zone / thermal_of_cooling_device API instead, adapt
+the callback signatures, and read the factory calibration temperature
+(thermal_state baseline) from the cooling-temp NVMEM cell rather than
+the dropped sfax8-factory-read driver.
+
+--- a/sf_smac/src/rf/rf_entry.c
++++ b/sf_smac/src/rf/rf_entry.c
+@@ -15,9 +15,6 @@
+ #include <linux/uaccess.h>
+ #include <linux/fs.h>
+ #include <linux/reset.h>
+-#ifdef COOLING_TEMP
+-#include <sfax8_thermal.h>
+-#endif
+ #ifdef CONFIG_SF16A18_RF_SYSFS_DEBUG
+ #include "rf_sysfs.h"
+ #endif
+@@ -979,9 +976,10 @@
+     }
+     return (temp / 1000);
+ }
+-static int rf_thermal_sensors_get_temperature(void *data, int *temp)
++static int rf_thermal_sensors_get_temperature(struct thermal_zone_device *tz,
++                                              int *temp)
+ {
+-    struct sfax8_rf_thermal_state *rs = data;
++    struct sfax8_rf_thermal_state *rs = thermal_zone_device_priv(tz);
+     if (!temp)
+         return 0;
+ #ifdef CONFIG_SF16A18_WIFI_ATE_TOOLS
+@@ -997,9 +995,11 @@
+     *temp = (rs->temp - rs->relative_diff) * 1000;
+     return 0;
+ }
+-static int rf_thermal_sensors_get_trend(void *data,enum thermal_trend *trend)
++static int rf_thermal_sensors_get_trend(struct thermal_zone_device *tz,
++                                        const struct thermal_trip *trip,
++                                        enum thermal_trend *trend)
+ {
+-    struct sfax8_rf_thermal_state *rs = data;
++    struct sfax8_rf_thermal_state *rs = thermal_zone_device_priv(tz);
+     struct rf_pl_context *pl_ctx = g_rf_pl_ctx;
+     long ttrend;
+     if (!trend)
+@@ -1025,14 +1025,16 @@
+         *trend = THERMAL_TREND_STABLE;
+     return 0;
+ }
+-static int sfax8_rf_get_max_state(void *data, unsigned long *state)
++static int sfax8_rf_get_max_state(struct thermal_cooling_device *cdev,
++                                  unsigned long *state)
+ {
+     *state = MAX_STATE;
+     return 0;
+ }
+-static int sfax8_rf_get_cur_state(void *data,unsigned long *state)
++static int sfax8_rf_get_cur_state(struct thermal_cooling_device *cdev,
++                                  unsigned long *state)
+ {
+-    struct sfax8_rf_thermal_state *rs = data;
++    struct sfax8_rf_thermal_state *rs = cdev->devdata;
+     *state = rs->state;
+     return 0;
+ }
+@@ -1131,11 +1133,12 @@
+ #endif
+     return change_power;
+ }
+-static int sfax8_rf_set_cur_state(void *data,unsigned long state)
++static int sfax8_rf_set_cur_state(struct thermal_cooling_device *cdev,
++                                  unsigned long state)
+ {
+     int8_t ret = 0;
+     int8_t i = 0;
+-    struct sfax8_rf_thermal_state *rs = data;
++    struct sfax8_rf_thermal_state *rs = cdev->devdata;
+     struct rf_pl_context *pl_ctx = g_rf_pl_ctx;
+     struct rf_cooling_temp_set *temp_set = &(pl_ctx->cooling_temp_set);
+     int change_power = 0;
+@@ -1173,18 +1176,43 @@
+     mutex_unlock(&pl_ctx->bb_mtx);
+     return 0;
+ }
+-static struct sfax8_zone_device_ops sfax8_rf_zone_ops = {
++static const struct thermal_zone_device_ops sfax8_rf_zone_ops = {
+     .get_temp = rf_thermal_sensors_get_temperature,
+     .get_trend = rf_thermal_sensors_get_trend,
+ };
+-static struct sfax8_cooling_device_ops sfax8_rf_thermal_ops = {
++static const struct thermal_cooling_device_ops sfax8_rf_thermal_ops = {
+     .get_max_state = sfax8_rf_get_max_state,
+     .get_cur_state = sfax8_rf_get_cur_state,
+     .set_cur_state = sfax8_rf_set_cur_state,
+ };
+-int sf_wifi_set_thermal_state(void)
++int sf_wifi_set_thermal_state(struct platform_device *pdev)
+ {
+-	/* Cooling temp is optional. If not available, keep defaults. */
++	struct nvmem_cell *cell;
++	u8 *buf;
++	size_t len;
++	int temp;
++
++	cell = of_nvmem_cell_get(pdev->dev.of_node, "cooling-temp");
++	if (IS_ERR(cell))
++		return PTR_ERR(cell);
++
++	buf = nvmem_cell_read(cell, &len);
++	nvmem_cell_put(cell);
++	if (IS_ERR(buf))
++		return PTR_ERR(buf);
++
++	if (len < 2 || buf[0] > 100) {
++		kfree(buf);
++		return -EINVAL;
++	}
++
++	/* byte 1 set means the calibration temperature is below zero */
++	temp = buf[1] == 1 ? -buf[0] : buf[0];
++	kfree(buf);
++
++	thermal_state = (temp + 20) / 5 + 1;
++	printk("rf cooling: factory temp %d -> thermal_state %d\n", temp,
++	       thermal_state);
+ 	return 0;
+ }
+ #endif
+@@ -1258,20 +1286,27 @@
+         ate_aetset = 0;
+ #endif
+         printk("rf mod param thermal_on %d \n",thermal_on);
+-        if(sf_wifi_set_thermal_state()){
++        if (sf_wifi_set_thermal_state(pdev)) {
+             printk("sf_wifi_set_thermal_state failed!\n");
+         }
+         priv->cooling_temp_set.dual_cali_enable = priv->dual_antenna_calibrate;
+         printk("dual thermal %d\n",priv->cooling_temp_set.dual_cali_enable);
+-        if ((ret = sfax8_thermal_sensor_register(
+-                        &pdev->dev, &sfax8_rf_zone_ops, &(priv->rf_thermal_state)))) {
+-            printk("sfax8_thermal_sensor_register failed, ret = %d!\n", ret);
+-            goto error_irqs_unregister;
++        struct thermal_zone_device *tz;
++        struct thermal_cooling_device *cdev;
++
++        tz = devm_thermal_of_zone_register(&pdev->dev, 0,
++                        &(priv->rf_thermal_state), &sfax8_rf_zone_ops);
++        if (IS_ERR(tz)) {
++            printk("rf thermal zone register failed, ret = %ld!\n",
++                   PTR_ERR(tz));
++        } else {
++            cdev = devm_thermal_of_cooling_device_register(&pdev->dev,
++                            pdev->dev.of_node, "sf-rf-cooling",
++                            &(priv->rf_thermal_state), &sfax8_rf_thermal_ops);
++            if (IS_ERR(cdev))
++                printk("rf cooling device register failed, ret = %ld!\n",
++                       PTR_ERR(cdev));
+         }
+-        if ((ret = sfax8_cooling_device_register(&pdev->dev, &(priv->rf_thermal_state), &sfax8_rf_thermal_ops))) {
+-            printk("sfax8_cooling_device_register failed, ret = %d!\n", ret);
+-            goto error_irqs_unregister;
+-        }
+     }
+ #endif
+ #ifdef CONFIG_SF16A18_RF_SYSFS_DEBUG
+@@ -1301,10 +1336,6 @@
+     struct rf_pl_context *priv;
+     printk("%s\n", __func__);
+     priv = (struct rf_pl_context *)platform_get_drvdata(pdev);
+-#ifdef COOLING_TEMP
+-    sfax8_thermal_sensor_unregister(&pdev->dev);
+-    sfax8_cooling_device_unregister(&pdev->dev);
+-#endif
+ #ifdef CONFIG_SF16A18_RF_SYSFS_DEBUG
+     sf_wifi_rf_sysfs_unregister(pdev);
+ #endif

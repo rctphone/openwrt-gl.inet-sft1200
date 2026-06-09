@@ -86,8 +86,9 @@
 
 &wlan_rf {
 	status = "okay";
-	nvmem-cells = <&rf_cali_config_factory_800>;
-	nvmem-cell-names = "rf-cali-config";
+	nvmem-cells = <&rf_cali_config_factory_800>,
+		      <&cooling_temp_factory_ae>;
+	nvmem-cell-names = "rf-cali-config", "cooling-temp";
 };
 
 &wlan24 {
@@ -157,6 +158,10 @@
 
 					macaddr_factory_0: macaddr@0 {
 						reg = <0x0 0x6>;
+					};
+
+					cooling_temp_factory_ae: cooling-temp@ae {
+						reg = <0xae 0x2>;
 					};
 
 					rgmii_delay_factory_b2: rgmii-delay@b2 {
