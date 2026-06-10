@@ -46,7 +46,7 @@ Signed-off-by: Daniel Golle <daniel@makrotopia.org>
  static struct phylink_pcs *gsw1xx_phylink_mac_select_pcs(struct phylink_config *config,
  							 phy_interface_t interface)
  {
-@@ -786,11 +809,32 @@ static const struct gswip_hw_info gsw141
+@@ -811,11 +834,32 @@ static const struct gswip_hw_info gsw141
  	.tag_protocol		= DSA_TAG_PROTO_MXL_GSW1XX,
  };
  
@@ -79,7 +79,7 @@ Signed-off-by: Daniel Golle <daniel@makrotopia.org>
  	{ .compatible = "maxlinear,gsw120", .data = &gsw12x_data },
  	{ .compatible = "maxlinear,gsw125", .data = &gsw12x_data },
  	{ .compatible = "maxlinear,gsw140", .data = &gsw140_data },
-@@ -814,5 +858,5 @@ static struct mdio_driver gsw1xx_driver
+@@ -839,5 +883,5 @@ static struct mdio_driver gsw1xx_driver
  mdio_module_driver(gsw1xx_driver);
  
  MODULE_AUTHOR("Daniel Golle <daniel@makrotopia.org>");

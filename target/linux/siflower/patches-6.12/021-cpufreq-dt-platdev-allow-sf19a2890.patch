@@ -11,7 +11,7 @@ Signed-off-by: Ivan Semenov <ivan@ray.app>
 ---
 --- a/drivers/cpufreq/cpufreq-dt-platdev.c
 +++ b/drivers/cpufreq/cpufreq-dt-platdev.c
-@@ -176,6 +176,8 @@ static const struct of_device_id allowli
+@@ -178,6 +178,8 @@ static const struct of_device_id blockli
  	{ .compatible = "qcom,sm8550", },
  	{ .compatible = "qcom,sm8650", },
  

@@ -460,7 +460,7 @@ Signed-off-by: Ivan Semenov <ivan@ray.app>
  static struct regmap *gsw1xx_regmap_init(struct gsw1xx_priv *priv,
  					 const char *name,
  					 unsigned int reg_base,
-@@ -714,6 +847,19 @@ static int gsw1xx_probe(struct mdio_devi
+@@ -737,6 +870,19 @@ static int gsw1xx_probe(struct mdio_devi
  
  	INIT_DELAYED_WORK(&priv->clear_raneg, gsw1xx_pcs_clear_raneg);
  
@@ -480,7 +480,7 @@ Signed-off-by: Ivan Semenov <ivan@ray.app>
  	ret = gswip_probe_common(&priv->gswip, version);
  	if (ret)
  		return ret;
-@@ -770,6 +916,11 @@ static const struct gswip_hw_info gsw12x
+@@ -795,6 +941,11 @@ static const struct gswip_hw_info gsw12x
  	.phylink_get_caps	= &gsw1xx_phylink_get_caps,
  	.supports_2500m		= true,
  	.port_setup		= gsw1xx_port_setup,
@@ -492,7 +492,7 @@ Signed-off-by: Ivan Semenov <ivan@ray.app>
  	.pce_microcode		= &gsw1xx_pce_microcode,
  	.pce_microcode_size	= ARRAY_SIZE(gsw1xx_pce_microcode),
  	.tag_protocol		= DSA_TAG_PROTO_MXL_GSW1XX,
-@@ -792,6 +943,11 @@ static const struct gswip_hw_info gsw140
+@@ -817,6 +968,11 @@ static const struct gswip_hw_info gsw140
  	.phylink_get_caps	= &gsw1xx_phylink_get_caps,
  	.supports_2500m		= true,
  	.port_setup		= gsw1xx_port_setup,
@@ -504,7 +504,7 @@ Signed-off-by: Ivan Semenov <ivan@ray.app>
  	.pce_microcode		= &gsw1xx_pce_microcode,
  	.pce_microcode_size	= ARRAY_SIZE(gsw1xx_pce_microcode),
  	.tag_protocol		= DSA_TAG_PROTO_MXL_GSW1XX,
-@@ -813,6 +969,11 @@ static const struct gswip_hw_info gsw141
+@@ -838,6 +994,11 @@ static const struct gswip_hw_info gsw141
  	.mac_select_pcs		= gsw1xx_phylink_mac_select_pcs,
  	.phylink_get_caps	= gsw1xx_phylink_get_caps,
  	.port_setup		= gsw1xx_port_setup,

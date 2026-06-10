@@ -13,7 +13,8 @@ Signed-off-by: Ivan Semenov <ivan@ray.app>
 
 --- a/drivers/net/dsa/lantiq/mxl-gsw1xx.c
 +++ b/drivers/net/dsa/lantiq/mxl-gsw1xx.c
-@@ -940,5 +940,10 @@ static const struct gswip_hw_info gsw150
+@@ -1018,6 +1018,11 @@ static const struct gswip_hw_info gsw150
+ 		[6] = 11,
  	},
  	.phylink_get_caps	= gsw150_phylink_get_caps,
 +	.get_tag_protocol	= gsw1xx_get_tag_protocol,
