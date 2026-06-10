@@ -1,0 +1,31 @@
+. /lib/functions.sh
+
+case "$(board_name)" in
+glinet,gl-sft1200)
+	# Generate the wireless config now (the radios are already up:
+	# kmodloader runs earlier in the boot script) and ship with WiFi
+	# enabled out of the box, stock-firmware style: SSID GL-SFT1200,
+	# WPA2 with the well-known GL.iNet default key.
+	wifi config
+
+	uci -q get wireless.radio0 > /dev/null || exit 0
+
+	uci -q batch <<-EOF
+		set wireless.radio0.disabled='0'
+		set wireless.default_radio0.ssid='GL-SFT1200'
+		set wireless.default_radio0.encryption='psk2'
+		set wireless.default_radio0.key='goodlife'
+		commit wireless
+	EOF
+
+	if uci -q get wireless.radio1 > /dev/null; then
+		uci -q batch <<-EOF
+			set wireless.radio1.disabled='0'
+			set wireless.default_radio1.ssid='GL-SFT1200-5G'
+			set wireless.default_radio1.encryption='psk2'
+			set wireless.default_radio1.key='goodlife'
+			commit wireless
+		EOF
+	fi
+	;;
+esac
